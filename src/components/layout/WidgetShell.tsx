@@ -1,37 +1,62 @@
+import { useState, useRef } from 'react'
 import { X } from 'lucide-react'
 import type { WidgetType } from '@/types/widget'
+import { useDashboardStore } from '@/store/dashboardStore'
 import { ClockWidget } from '@/components/widgets/ClockWidget'
 import { QuickLinksWidget } from '@/components/widgets/QuickLinksWidget'
 import { NotesWidget } from '@/components/widgets/NotesWidget'
+import { LinedNotesWidget } from '@/components/widgets/LinedNotesWidget'
 import { TodoWidget } from '@/components/widgets/TodoWidget'
 import { PomodoroWidget } from '@/components/widgets/PomodoroWidget'
 
-const WIDGET_TITLES: Record<WidgetType, string> = {
+const DEFAULT_TITLES: Record<WidgetType, string> = {
   clock: '时钟',
   'quick-links': '快速链接',
   notes: '便签',
+  'lined-notes': '格纸笔记',
   todo: '待办事项',
   pomodoro: '番茄钟',
 }
 
-const WIDGET_MAP: Record<WidgetType, React.ComponentType> = {
-  clock: ClockWidget,
-  'quick-links': QuickLinksWidget,
-  notes: NotesWidget,
-  todo: TodoWidget,
-  pomodoro: PomodoroWidget,
-}
-
 interface WidgetShellProps {
   type: WidgetType
+  widgetId: string
   onRemove: () => void
   showHeader: boolean
 }
 
-export function WidgetShell({ type, onRemove, showHeader }: WidgetShellProps) {
-  const Component = WIDGET_MAP[type]
+export function WidgetShell({ type, widgetId, onRemove, showHeader }: WidgetShellProps) {
+  const widgetNames = useDashboardStore((s) => s.widgetNames)
+  const renameWidget = useDashboardStore((s) => s.renameWidget)
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState('')
+  const inputRef = useRef<HTMLInputElement>(null)
 
-  if (!Component) return null
+  const displayTitle = widgetNames[widgetId] ?? DEFAULT_TITLES[type]
+
+  function startEdit() {
+    setDraft(displayTitle)
+    setEditing(true)
+    setTimeout(() => { inputRef.current?.select() }, 0)
+  }
+
+  function commitEdit() {
+    const trimmed = draft.trim()
+    if (trimmed) renameWidget(widgetId, trimmed)
+    setEditing(false)
+  }
+
+  function renderContent() {
+    switch (type) {
+      case 'clock': return <ClockWidget />
+      case 'quick-links': return <QuickLinksWidget />
+      case 'notes': return <NotesWidget />
+      case 'lined-notes': return <LinedNotesWidget widgetId={widgetId} />
+      case 'todo': return <TodoWidget widgetId={widgetId} />
+      case 'pomodoro': return <PomodoroWidget />
+      default: return null
+    }
+  }
 
   return (
     <div className="widget-card h-full flex flex-col">
@@ -40,19 +65,48 @@ export function WidgetShell({ type, onRemove, showHeader }: WidgetShellProps) {
           className="drag-handle flex items-center px-4 py-2.5 cursor-grab active:cursor-grabbing select-none group/header"
           style={{ borderBottom: '1px solid var(--border)' }}
         >
-          <span
-            className="flex-1"
-            style={{
-              fontFamily: "'Cormorant Garamond', serif",
-              fontSize: '11px',
-              fontWeight: 600,
-              letterSpacing: '0.18em',
-              textTransform: 'uppercase',
-              color: 'var(--text-muted)',
-            }}
-          >
-            {WIDGET_TITLES[type]}
-          </span>
+          {editing ? (
+            <input
+              ref={inputRef}
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+              onBlur={commitEdit}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') commitEdit()
+                if (e.key === 'Escape') setEditing(false)
+              }}
+              onMouseDown={(e) => e.stopPropagation()}
+              className="flex-1 outline-none bg-transparent"
+              style={{
+                fontFamily: "'Cormorant Garamond', serif",
+                fontSize: '11px',
+                fontWeight: 600,
+                letterSpacing: '0.18em',
+                textTransform: 'uppercase',
+                color: 'var(--text)',
+                border: 'none',
+                borderBottom: '1px solid var(--primary-light)',
+              }}
+            />
+          ) : (
+            <span
+              className="flex-1"
+              onDoubleClick={startEdit}
+              title="双击重命名"
+              style={{
+                fontFamily: "'Cormorant Garamond', serif",
+                fontSize: '11px',
+                fontWeight: 600,
+                letterSpacing: '0.18em',
+                textTransform: 'uppercase',
+                color: 'var(--text-muted)',
+                cursor: 'default',
+              }}
+            >
+              {displayTitle}
+            </span>
+          )}
+
           <button
             onMouseDown={(e) => e.stopPropagation()}
             onClick={onRemove}
@@ -78,7 +132,7 @@ export function WidgetShell({ type, onRemove, showHeader }: WidgetShellProps) {
       )}
 
       <div className="widget-content flex-1 overflow-hidden p-3">
-        <Component />
+        {renderContent()}
       </div>
     </div>
   )

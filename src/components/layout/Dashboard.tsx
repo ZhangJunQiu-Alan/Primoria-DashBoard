@@ -44,6 +44,7 @@ export function Dashboard({ showWidgetHeaders }: DashboardProps) {
           <div key={widget.id}>
             <WidgetShell
               type={widget.type}
+              widgetId={widget.id}
               onRemove={() => removeWidget(widget.id)}
               showHeader={showWidgetHeaders}
             />

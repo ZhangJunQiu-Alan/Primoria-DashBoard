@@ -2,6 +2,7 @@ export type WidgetType =
   | 'clock'
   | 'quick-links'
   | 'notes'
+  | 'lined-notes'
   | 'todo'
   | 'pomodoro'
 

@@ -15,6 +15,7 @@ const WIDGET_DEFS: WidgetDef[] = [
   { type: 'clock', name: '时钟', description: '显示当前时间与日期', icon: Clock, category: '信息' },
   { type: 'quick-links', name: '快速链接', description: '常用书签，一键直达', icon: Link2, category: '效率' },
   { type: 'notes', name: '便签', description: '随手记录想法', icon: FileText, category: '效率' },
+  { type: 'lined-notes', name: '格纸笔记', description: '带横线格纸风格的笔记', icon: FileText, category: '效率' },
   { type: 'todo', name: '待办事项', description: '管理每日任务', icon: CheckSquare, category: '效率' },
   { type: 'pomodoro', name: '番茄钟', description: '专注计时，劳逸结合', icon: Timer, category: '效率' },
 ]
