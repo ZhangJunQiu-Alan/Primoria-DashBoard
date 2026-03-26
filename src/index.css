@@ -76,6 +76,6 @@ body::before {
   transition: all 200ms ease;
 }
 
-.react-resizable-handle { opacity: 0.2; transition: opacity 0.2s; }
+.react-resizable-handle { opacity: 0; transition: opacity 0.2s; }
 .react-grid-item:hover .react-resizable-handle { opacity: 1; }
-.react-resizable-handle::after { border-color: var(--primary) !important; }
+.react-resizable-handle::after { border-color: var(--primary-dark) !important; border-width: 3px !important; }
