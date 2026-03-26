@@ -7,7 +7,11 @@ import type { LayoutItem } from '@/types/widget'
 const BREAKPOINTS = { lg: 1200, md: 996, sm: 768 }
 const COLS = { lg: 12, md: 10, sm: 6 }
 
-export function Dashboard() {
+interface DashboardProps {
+  showWidgetHeaders: boolean
+}
+
+export function Dashboard({ showWidgetHeaders }: DashboardProps) {
   const { widgets, layout, removeWidget, updateLayout } = useDashboardStore()
 
   const { width, containerRef } = useContainerWidth({ initialWidth: 1200 })
@@ -41,6 +45,7 @@ export function Dashboard() {
             <WidgetShell
               type={widget.type}
               onRemove={() => removeWidget(widget.id)}
+              showHeader={showWidgetHeaders}
             />
           </div>
         ))}

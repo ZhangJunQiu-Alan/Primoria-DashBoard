@@ -1,11 +1,9 @@
 export type WidgetType =
   | 'clock'
-  | 'weather'
   | 'quick-links'
   | 'notes'
   | 'todo'
   | 'pomodoro'
-  | 'ai-chat'
 
 export interface WidgetMeta {
   type: WidgetType

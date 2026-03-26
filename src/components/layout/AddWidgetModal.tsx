@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { X, Search, Clock, Cloud, Link2, FileText, CheckSquare, Timer, Bot } from 'lucide-react'
+import { X, Search, Clock, Link2, FileText, CheckSquare, Timer } from 'lucide-react'
 import { useDashboardStore } from '@/store/dashboardStore'
 import type { WidgetType } from '@/types/widget'
 
@@ -13,12 +13,10 @@ interface WidgetDef {
 
 const WIDGET_DEFS: WidgetDef[] = [
   { type: 'clock', name: 'Clock', description: 'Current time and date', icon: Clock, category: 'Information' },
-  { type: 'weather', name: 'Weather', description: 'Current weather conditions', icon: Cloud, category: 'Information' },
   { type: 'quick-links', name: 'Quick Links', description: 'Your favorite bookmarks at a glance', icon: Link2, category: 'Productivity' },
   { type: 'notes', name: 'Notes', description: 'Scratch pad for quick notes', icon: FileText, category: 'Productivity' },
   { type: 'todo', name: 'Todo', description: 'Track your tasks', icon: CheckSquare, category: 'Productivity' },
   { type: 'pomodoro', name: 'Pomodoro', description: 'Focus timer with breaks', icon: Timer, category: 'Productivity' },
-  { type: 'ai-chat', name: 'AI Assistant', description: 'Chat with an AI assistant', icon: Bot, category: 'AI' },
 ]
 
 interface Props {
