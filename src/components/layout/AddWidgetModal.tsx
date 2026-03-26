@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { X, Search, Clock, Link2, FileText, CheckSquare, Timer } from 'lucide-react'
 import { useDashboardStore } from '@/store/dashboardStore'
 import type { WidgetType } from '@/types/widget'
@@ -31,10 +31,10 @@ export function AddWidgetModal({ open, onClose }: Props) {
 
   if (!open) return null
 
-  const filtered = WIDGET_DEFS.filter(
-    (w) => w.name.includes(search) || w.description.includes(search)
-  )
-  const categories = [...new Set(filtered.map((w) => w.category))]
+  const { filtered, categories } = useMemo(() => {
+    const f = WIDGET_DEFS.filter((w) => w.name.includes(search) || w.description.includes(search))
+    return { filtered: f, categories: [...new Set(f.map((w) => w.category))] }
+  }, [search])
 
   function handleAdd(type: WidgetType) {
     addWidget(type)

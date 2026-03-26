@@ -1,5 +1,6 @@
 import { useState, useRef } from 'react'
-import { X } from 'lucide-react'
+import { X, SquareArrowOutUpRight } from 'lucide-react'
+import { invoke } from '@tauri-apps/api/core'
 import type { WidgetType } from '@/types/widget'
 import { useDashboardStore } from '@/store/dashboardStore'
 import { ClockWidget } from '@/components/widgets/ClockWidget'
@@ -26,13 +27,12 @@ interface WidgetShellProps {
 }
 
 export function WidgetShell({ type, widgetId, onRemove, showHeader }: WidgetShellProps) {
-  const widgetNames = useDashboardStore((s) => s.widgetNames)
+  const displayTitle = useDashboardStore((s) => s.widgetNames[widgetId] ?? DEFAULT_TITLES[type])
   const renameWidget = useDashboardStore((s) => s.renameWidget)
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState('')
+  const [popoutOpen, setPopoutOpen] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
-
-  const displayTitle = widgetNames[widgetId] ?? DEFAULT_TITLES[type]
 
   function startEdit() {
     setDraft(displayTitle)
@@ -107,6 +107,34 @@ export function WidgetShell({ type, widgetId, onRemove, showHeader }: WidgetShel
             </span>
           )}
 
+          {type === 'todo' && (
+            <button
+              onMouseDown={(e) => e.stopPropagation()}
+              onClick={() => {
+                if (popoutOpen) {
+                  invoke('close_todo_popout', { widgetId })
+                  setPopoutOpen(false)
+                } else {
+                  invoke('open_todo_popout', { widgetId, title: displayTitle })
+                  setPopoutOpen(true)
+                }
+              }}
+              className="opacity-0 group-hover/header:opacity-100 p-1 rounded-lg transition-all"
+              style={{ color: popoutOpen ? 'var(--primary-dark)' : 'var(--text-muted)' }}
+              onMouseEnter={e => {
+                e.currentTarget.style.background = 'var(--bg-muted)'
+                e.currentTarget.style.color = 'var(--primary-dark)'
+              }}
+              onMouseLeave={e => {
+                e.currentTarget.style.background = ''
+                e.currentTarget.style.color = popoutOpen ? 'var(--primary-dark)' : 'var(--text-muted)'
+              }}
+              title="弹出窗口"
+            >
+              <SquareArrowOutUpRight size={12} />
+            </button>
+          )}
+
           <button
             onMouseDown={(e) => e.stopPropagation()}
             onClick={onRemove}
@@ -134,6 +162,7 @@ export function WidgetShell({ type, widgetId, onRemove, showHeader }: WidgetShel
       <div className="widget-content flex-1 overflow-hidden p-3">
         {renderContent()}
       </div>
+
     </div>
   )
 }

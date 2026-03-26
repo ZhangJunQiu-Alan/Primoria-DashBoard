@@ -8,12 +8,10 @@ interface DashboardState {
   widgets: WidgetInstance[]
   layout: LayoutItem[]
   widgetNames: Record<string, string>
-  backgroundImage: string | null
   addWidget: (type: WidgetType) => void
   removeWidget: (id: string) => void
   updateLayout: (layout: LayoutItem[]) => void
   renameWidget: (id: string, name: string) => void
-  setBackgroundImage: (dataUrl: string | null) => void
 }
 
 function generateId() {
@@ -45,7 +43,6 @@ export const useDashboardStore = create<DashboardState>()(
       widgets: DEFAULT_WIDGETS,
       layout: DEFAULT_LAYOUT,
       widgetNames: {},
-      backgroundImage: null,
 
       addWidget: (type) => {
         const id = generateId()
@@ -77,25 +74,33 @@ export const useDashboardStore = create<DashboardState>()(
 
       renameWidget: (id, name) =>
         set((s) => ({ widgetNames: { ...s.widgetNames, [id]: name } })),
-
-      setBackgroundImage: (dataUrl) => set({ backgroundImage: dataUrl }),
     }),
     {
       name: 'primoria-dashboard',
-      version: 3,
+      version: 4,
+      storage: {
+        getItem: (key) => {
+          try { return JSON.parse(localStorage.getItem(key) ?? 'null') } catch { return null }
+        },
+        setItem: (key, value) => {
+          try { localStorage.setItem(key, JSON.stringify(value)) } catch (e) {
+            console.warn('dashboardStore: localStorage write failed', e)
+          }
+        },
+        removeItem: (key) => { try { localStorage.removeItem(key) } catch {} },
+      },
       migrate: (persisted) => {
-        const state = persisted as DashboardState
+        const state = persisted as DashboardState & { backgroundImage?: unknown }
         const validWidgets = (state.widgets ?? []).filter((w) =>
           VALID_TYPES.includes(w.type as WidgetType)
         )
         const validIds = new Set(validWidgets.map((w) => w.id))
+        // Explicitly strip backgroundImage — it now lives in primoria-background
         return {
-          ...state,
           widgets: validWidgets,
           layout: (state.layout ?? []).filter((l) => validIds.has(l.i)),
           widgetNames: state.widgetNames ?? {},
-          backgroundImage: state.backgroundImage ?? null,
-        }
+        } as DashboardState
       },
     }
   )

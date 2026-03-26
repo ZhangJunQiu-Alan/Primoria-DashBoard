@@ -4,15 +4,15 @@ import { Plus, Eye, EyeOff, Sparkles, ImageIcon } from 'lucide-react'
 import { Dashboard } from '@/components/layout/Dashboard'
 import { AddWidgetModal } from '@/components/layout/AddWidgetModal'
 import { AIChatPanel } from '@/components/layout/AIChatPanel'
-import { useDashboardStore } from '@/store/dashboardStore'
+import { useBackgroundStore } from '@/store/backgroundStore'
 import { Toaster } from 'sonner'
 
 export default function App() {
   const [modalOpen, setModalOpen] = useState(false)
   const [aiOpen, setAiOpen] = useState(false)
   const [uiVisible, setUiVisible] = useState(true)
-  const backgroundImage = useDashboardStore((s) => s.backgroundImage)
-  const setBackgroundImage = useDashboardStore((s) => s.setBackgroundImage)
+  const backgroundImage = useBackgroundStore((s) => s.backgroundImage)
+  const setBackgroundImage = useBackgroundStore((s) => s.setBackgroundImage)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   function handleImageUpload(e: React.ChangeEvent<HTMLInputElement>) {
@@ -60,30 +60,48 @@ export default function App() {
           {/* 背景图 */}
           <button
             onClick={() => fileInputRef.current?.click()}
-            className="p-2 rounded-full transition-all"
+            className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium transition-all"
             style={{
-              color: 'var(--text-muted)',
-              background: 'rgba(254,250,245,0.9)',
-              border: '1px solid var(--border)',
+              color: backgroundImage ? 'var(--primary-dark)' : 'var(--text-sub)',
+              background: backgroundImage
+                ? 'linear-gradient(135deg, #EFF6F0, #E2EEE3)'
+                : 'rgba(254,250,245,0.92)',
+              borderRadius: '999px',
+              border: `1px solid ${backgroundImage ? 'var(--primary-light)' : 'var(--border)'}`,
               boxShadow: '0 2px 8px var(--shadow)',
+              backdropFilter: 'blur(8px)',
             }}
-            title={backgroundImage ? '更换背景图' : '设置背景图'}
-            onMouseEnter={e => (e.currentTarget.style.color = 'var(--text)')}
-            onMouseLeave={e => (e.currentTarget.style.color = 'var(--text-muted)')}
+            title={backgroundImage ? '更换壁纸' : '设置壁纸'}
+            onMouseEnter={e => {
+              e.currentTarget.style.background = 'linear-gradient(135deg, #EFF6F0, #E2EEE3)'
+              e.currentTarget.style.borderColor = 'var(--primary-light)'
+              e.currentTarget.style.color = 'var(--primary-dark)'
+            }}
+            onMouseLeave={e => {
+              e.currentTarget.style.background = backgroundImage
+                ? 'linear-gradient(135deg, #EFF6F0, #E2EEE3)'
+                : 'rgba(254,250,245,0.92)'
+              e.currentTarget.style.borderColor = backgroundImage ? 'var(--primary-light)' : 'var(--border)'
+              e.currentTarget.style.color = backgroundImage ? 'var(--primary-dark)' : 'var(--text-sub)'
+            }}
           >
-            <ImageIcon size={14} />
+            <ImageIcon size={13} />
+            壁纸
           </button>
           {backgroundImage && (
             <button
               onClick={() => setBackgroundImage(null)}
-              className="px-2 py-1 rounded-full text-xs transition-all"
+              className="px-3 py-1.5 rounded-full text-sm transition-all"
               style={{
                 color: 'var(--text-muted)',
-                background: 'rgba(254,250,245,0.9)',
+                background: 'rgba(254,250,245,0.92)',
                 border: '1px solid var(--border)',
+                backdropFilter: 'blur(8px)',
               }}
+              onMouseEnter={e => { e.currentTarget.style.color = '#C4807A'; e.currentTarget.style.borderColor = '#C4807A' }}
+              onMouseLeave={e => { e.currentTarget.style.color = 'var(--text-muted)'; e.currentTarget.style.borderColor = 'var(--border)' }}
             >
-              移除背景
+              移除壁纸
             </button>
           )}
 
@@ -123,19 +141,33 @@ export default function App() {
         {/* 眼睛按钮 — 始终可见 */}
         <button
           onClick={() => setUiVisible((v) => !v)}
-          className="p-2 rounded-full transition-all"
+          className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium transition-all"
           style={{
-            color: uiVisible ? 'var(--text-muted)' : 'var(--primary)',
-            background: 'rgba(254,250,245,0.92)',
-            border: '1px solid var(--border)',
+            color: uiVisible ? 'var(--text-sub)' : 'var(--primary-dark)',
+            background: uiVisible
+              ? 'rgba(254,250,245,0.92)'
+              : 'linear-gradient(135deg, #EFF6F0, #E2EEE3)',
+            borderRadius: '999px',
+            border: `1px solid ${uiVisible ? 'var(--border)' : 'var(--primary-light)'}`,
             boxShadow: '0 2px 8px var(--shadow)',
             backdropFilter: 'blur(8px)',
           }}
           title={uiVisible ? '隐藏界面' : '显示界面'}
-          onMouseEnter={e => (e.currentTarget.style.color = 'var(--primary-dark)')}
-          onMouseLeave={e => (e.currentTarget.style.color = uiVisible ? 'var(--text-muted)' : 'var(--primary)')}
+          onMouseEnter={e => {
+            e.currentTarget.style.background = 'linear-gradient(135deg, #EFF6F0, #E2EEE3)'
+            e.currentTarget.style.borderColor = 'var(--primary-light)'
+            e.currentTarget.style.color = 'var(--primary-dark)'
+          }}
+          onMouseLeave={e => {
+            e.currentTarget.style.background = uiVisible
+              ? 'rgba(254,250,245,0.92)'
+              : 'linear-gradient(135deg, #EFF6F0, #E2EEE3)'
+            e.currentTarget.style.borderColor = uiVisible ? 'var(--border)' : 'var(--primary-light)'
+            e.currentTarget.style.color = uiVisible ? 'var(--text-sub)' : 'var(--primary-dark)'
+          }}
         >
-          {uiVisible ? <Eye size={15} /> : <EyeOff size={15} />}
+          {uiVisible ? <Eye size={13} /> : <EyeOff size={13} />}
+          {uiVisible ? '隐藏' : '显示'}
         </button>
       </div>
 

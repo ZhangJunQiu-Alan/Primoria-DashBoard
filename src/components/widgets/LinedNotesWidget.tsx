@@ -1,17 +1,24 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 
 const LINE_HEIGHT = 28
+const DEBOUNCE_MS = 600
 
 interface LinedNotesWidgetProps {
   widgetId?: string
 }
 
 export function LinedNotesWidget({ widgetId = 'default' }: LinedNotesWidgetProps) {
-  const storageKey = `primoria-lined-notes-${widgetId}`
+  const storageKey = useMemo(() => `primoria-lined-notes-${widgetId}`, [widgetId])
   const [content, setContent] = useState(() => localStorage.getItem(storageKey) ?? '')
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
-    localStorage.setItem(storageKey, content)
+    timerRef.current = setTimeout(() => {
+      localStorage.setItem(storageKey, content)
+    }, DEBOUNCE_MS)
+    return () => {
+      if (timerRef.current) clearTimeout(timerRef.current)
+    }
   }, [content, storageKey])
 
   return (

@@ -33,6 +33,7 @@ interface WidgetDataState {
   removeTodo: (widgetId: string, id: string) => void
   clearDoneTodos: (widgetId: string) => void
   markAllDone: (widgetId: string) => void
+  reorderTodos: (widgetId: string, fromIndex: number, toIndex: number) => void
 
   // Pomodoro
   pomodoro: PomodoroData
@@ -86,6 +87,15 @@ export const useWidgetDataStore = create<WidgetDataState>()(
           updateList(s.todosByWidget, widgetId, (list) =>
             list.map((t) => ({ ...t, done: true }))
           )
+        ),
+      reorderTodos: (widgetId, fromIndex, toIndex) =>
+        set((s) =>
+          updateList(s.todosByWidget, widgetId, (list) => {
+            const next = [...list]
+            const [moved] = next.splice(fromIndex, 1)
+            next.splice(toIndex, 0, moved)
+            return next
+          })
         ),
 
       pomodoro: { totalSessions: 0, todaySessions: 0, lastSessionDate: today() },

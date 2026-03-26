@@ -1,5 +1,4 @@
-import { GridLayout, useContainerWidth, useResponsiveLayout } from 'react-grid-layout'
-import 'react-grid-layout/css/styles.css'
+import { GridLayout, useContainerWidth, useResponsiveLayout, noCompactor } from 'react-grid-layout'
 import { useDashboardStore } from '@/store/dashboardStore'
 import { WidgetShell } from './WidgetShell'
 import type { LayoutItem } from '@/types/widget'
@@ -12,7 +11,10 @@ interface DashboardProps {
 }
 
 export function Dashboard({ showWidgetHeaders }: DashboardProps) {
-  const { widgets, layout, removeWidget, updateLayout } = useDashboardStore()
+  const widgets = useDashboardStore((s) => s.widgets)
+  const layout = useDashboardStore((s) => s.layout)
+  const removeWidget = useDashboardStore((s) => s.removeWidget)
+  const updateLayout = useDashboardStore((s) => s.updateLayout)
 
   const { width, containerRef } = useContainerWidth({ initialWidth: 1200 })
 
@@ -33,6 +35,7 @@ export function Dashboard({ showWidgetHeaders }: DashboardProps) {
         layout={activeLayout}
         dragConfig={{ handle: '.drag-handle' }}
         onLayoutChange={(currentLayout) => updateLayout([...currentLayout] as LayoutItem[])}
+        compactor={noCompactor}
         gridConfig={{
           cols,
           rowHeight: 80,

@@ -1,12 +1,19 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 
 const STORAGE_KEY = 'primoria-notes'
+const DEBOUNCE_MS = 600
 
 export function NotesWidget() {
   const [content, setContent] = useState(() => localStorage.getItem(STORAGE_KEY) ?? '')
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, content)
+    timerRef.current = setTimeout(() => {
+      localStorage.setItem(STORAGE_KEY, content)
+    }, DEBOUNCE_MS)
+    return () => {
+      if (timerRef.current) clearTimeout(timerRef.current)
+    }
   }, [content])
 
   return (

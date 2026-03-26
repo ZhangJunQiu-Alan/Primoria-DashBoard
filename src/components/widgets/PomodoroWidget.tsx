@@ -1,21 +1,29 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { Play, Pause, RotateCcw } from 'lucide-react'
 import { useWidgetDataStore } from '@/store/widgetDataStore'
 
 const MODES = {
-  work: { label: '专注', duration: 25 * 60 },
+  work:  { label: '专注',  duration: 25 * 60 },
   short: { label: '短休息', duration: 5 * 60 },
-  long: { label: '长休息', duration: 15 * 60 },
+  long:  { label: '长休息', duration: 15 * 60 },
 } as const
 
 type Mode = keyof typeof MODES
 
+const CIRCUMFERENCE = 2 * Math.PI * 45
+
 export function PomodoroWidget() {
-  const { pomodoro, incrementPomodoro } = useWidgetDataStore()
+  const pomodoro = useWidgetDataStore((s) => s.pomodoro)
+  const incrementPomodoro = useWidgetDataStore((s) => s.incrementPomodoro)
+
   const [mode, setMode] = useState<Mode>('work')
   const [timeLeft, setTimeLeft] = useState(MODES.work.duration)
   const [running, setRunning] = useState(false)
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
+
+  // Stable reference so the interval effect doesn't restart on every store update
+  const incrementRef = useRef(incrementPomodoro)
+  incrementRef.current = incrementPomodoro
 
   useEffect(() => {
     if (running) {
@@ -23,7 +31,7 @@ export function PomodoroWidget() {
         setTimeLeft((t) => {
           if (t <= 1) {
             setRunning(false)
-            if (mode === 'work') incrementPomodoro()
+            if (mode === 'work') incrementRef.current()
             return 0
           }
           return t - 1
@@ -33,19 +41,27 @@ export function PomodoroWidget() {
       if (intervalRef.current) clearInterval(intervalRef.current)
     }
     return () => { if (intervalRef.current) clearInterval(intervalRef.current) }
-  }, [running, mode, incrementPomodoro])
+  }, [running, mode])
 
-  function switchMode(m: Mode) {
+  const switchMode = useCallback((m: Mode) => {
     setMode(m)
     setTimeLeft(MODES[m].duration)
     setRunning(false)
-  }
+  }, [])
 
-  const total = MODES[mode].duration
-  const circumference = 2 * Math.PI * 45
-  const dashOffset = circumference * (1 - (total - timeLeft) / total)
-  const mins = Math.floor(timeLeft / 60).toString().padStart(2, '0')
-  const secs = (timeLeft % 60).toString().padStart(2, '0')
+  const reset = useCallback(() => {
+    setTimeLeft(MODES[mode].duration)
+    setRunning(false)
+  }, [mode])
+
+  const { dashOffset, mins, secs } = useMemo(() => {
+    const total = MODES[mode].duration
+    return {
+      dashOffset: CIRCUMFERENCE * (1 - (total - timeLeft) / total),
+      mins: Math.floor(timeLeft / 60).toString().padStart(2, '0'),
+      secs: (timeLeft % 60).toString().padStart(2, '0'),
+    }
+  }, [mode, timeLeft])
 
   return (
     <div className="flex flex-col items-center justify-between h-full gap-2">
@@ -72,7 +88,7 @@ export function PomodoroWidget() {
             cx="55" cy="55" r="45" fill="none"
             stroke="var(--primary)" strokeWidth="4"
             strokeLinecap="round"
-            strokeDasharray={circumference}
+            strokeDasharray={CIRCUMFERENCE}
             strokeDashoffset={dashOffset}
             className="transition-all duration-1000"
           />
@@ -87,7 +103,7 @@ export function PomodoroWidget() {
 
       <div className="flex items-center gap-3">
         <button
-          onClick={() => { setTimeLeft(MODES[mode].duration); setRunning(false) }}
+          onClick={reset}
           className="p-2 rounded-full transition-all"
           style={{ color: 'var(--text-muted)' }}
           onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg-muted)')}

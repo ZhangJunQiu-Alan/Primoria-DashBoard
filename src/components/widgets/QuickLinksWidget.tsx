@@ -1,79 +1,35 @@
-import { useState } from 'react'
+import { useState, useCallback, memo } from 'react'
 import { Plus, X, Link2 } from 'lucide-react'
 import { useWidgetDataStore } from '@/store/widgetDataStore'
 
+function getFavicon(url: string): string | null {
+  try { return `${new URL(url).origin}/favicon.ico` } catch { return null }
+}
+
 export function QuickLinksWidget() {
-  const { quickLinks, addQuickLink, removeQuickLink } = useWidgetDataStore()
+  const quickLinks = useWidgetDataStore((s) => s.quickLinks)
+  const addQuickLink = useWidgetDataStore((s) => s.addQuickLink)
+  const removeQuickLink = useWidgetDataStore((s) => s.removeQuickLink)
+
   const [adding, setAdding] = useState(false)
   const [form, setForm] = useState({ title: '', url: '' })
 
-  function getFavicon(url: string) {
-    try {
-      return `${new URL(url).origin}/favicon.ico`
-    } catch {
-      return null
-    }
-  }
-
-  function handleAdd() {
+  const handleAdd = useCallback(() => {
     if (!form.url) return
     try {
       const title = form.title || new URL(form.url).hostname
       addQuickLink({ title, url: form.url })
       setForm({ title: '', url: '' })
       setAdding(false)
-    } catch {
-      // URL 格式错误
-    }
-  }
+    } catch { /* URL 格式错误 */ }
+  }, [form, addQuickLink])
 
   return (
     <div className="flex flex-col h-full gap-2">
       <div className="flex flex-wrap gap-2 flex-1 content-start">
-        {quickLinks.map((link) => {
-          const favicon = getFavicon(link.url)
-          return (
-            <a
-              key={link.id}
-              href={link.url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="group relative flex flex-col items-center gap-1 p-2 rounded-xl transition-colors w-16"
-              onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg-muted)')}
-              onMouseLeave={e => (e.currentTarget.style.background = '')}
-              title={link.title}
-            >
-              <button
-                onClick={(e) => { e.preventDefault(); removeQuickLink(link.id) }}
-                className="absolute -top-1 -right-1 hidden group-hover:flex items-center justify-center w-4 h-4 rounded-full transition-colors"
-                style={{ background: 'var(--border)' }}
-                onMouseEnter={e => (e.currentTarget.style.background = '#C4807A')}
-                onMouseLeave={e => (e.currentTarget.style.background = 'var(--border)')}
-              >
-                <X size={8} style={{ color: 'var(--text-sub)' }} />
-              </button>
-              {favicon ? (
-                <img
-                  src={favicon}
-                  alt=""
-                  className="w-8 h-8 rounded-lg object-contain"
-                  style={{ background: 'var(--bg-muted)' }}
-                  onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }}
-                />
-              ) : (
-                <div
-                  className="w-8 h-8 rounded-lg flex items-center justify-center"
-                  style={{ background: 'var(--bg-muted)' }}
-                >
-                  <Link2 size={14} style={{ color: 'var(--text-muted)' }} />
-                </div>
-              )}
-              <span className="truncate w-full text-center" style={{ fontSize: '10px', color: 'var(--text-muted)' }}>
-                {link.title}
-              </span>
-            </a>
-          )
-        })}
+        {quickLinks.map((link) => (
+          <LinkItem key={link.id} id={link.id} title={link.title} url={link.url} onRemove={removeQuickLink} />
+        ))}
 
         <button
           onClick={() => setAdding(true)}
@@ -123,3 +79,47 @@ export function QuickLinksWidget() {
     </div>
   )
 }
+
+// Memoized link item — only re-renders when its own data changes
+const LinkItem = memo(function LinkItem({
+  id, title, url, onRemove,
+}: { id: string; title: string; url: string; onRemove: (id: string) => void }) {
+  const favicon = getFavicon(url)
+  return (
+    <a
+      href={url}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="group relative flex flex-col items-center gap-1 p-2 rounded-xl transition-colors w-16"
+      onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg-muted)')}
+      onMouseLeave={e => (e.currentTarget.style.background = '')}
+      title={title}
+    >
+      <button
+        onClick={(e) => { e.preventDefault(); onRemove(id) }}
+        className="absolute -top-1 -right-1 hidden group-hover:flex items-center justify-center w-4 h-4 rounded-full transition-colors"
+        style={{ background: 'var(--border)' }}
+        onMouseEnter={e => (e.currentTarget.style.background = '#C4807A')}
+        onMouseLeave={e => (e.currentTarget.style.background = 'var(--border)')}
+      >
+        <X size={8} style={{ color: 'var(--text-sub)' }} />
+      </button>
+      {favicon ? (
+        <img
+          src={favicon}
+          alt=""
+          className="w-8 h-8 rounded-lg object-contain"
+          style={{ background: 'var(--bg-muted)' }}
+          onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }}
+        />
+      ) : (
+        <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: 'var(--bg-muted)' }}>
+          <Link2 size={14} style={{ color: 'var(--text-muted)' }} />
+        </div>
+      )}
+      <span className="truncate w-full text-center" style={{ fontSize: '10px', color: 'var(--text-muted)' }}>
+        {title}
+      </span>
+    </a>
+  )
+})
