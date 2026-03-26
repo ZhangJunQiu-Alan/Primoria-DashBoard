@@ -3,9 +3,9 @@ import { Play, Pause, RotateCcw } from 'lucide-react'
 import { useWidgetDataStore } from '@/store/widgetDataStore'
 
 const MODES = {
-  work: { label: 'Focus', duration: 25 * 60 },
-  short: { label: 'Short Break', duration: 5 * 60 },
-  long: { label: 'Long Break', duration: 15 * 60 },
+  work: { label: '专注', duration: 25 * 60 },
+  short: { label: '短休息', duration: 5 * 60 },
+  long: { label: '长休息', duration: 15 * 60 },
 } as const
 
 type Mode = keyof typeof MODES
@@ -41,16 +41,9 @@ export function PomodoroWidget() {
     setRunning(false)
   }
 
-  function reset() {
-    setTimeLeft(MODES[mode].duration)
-    setRunning(false)
-  }
-
   const total = MODES[mode].duration
-  const progress = (total - timeLeft) / total
   const circumference = 2 * Math.PI * 45
-  const dashOffset = circumference * (1 - progress)
-
+  const dashOffset = circumference * (1 - (total - timeLeft) / total)
   const mins = Math.floor(timeLeft / 60).toString().padStart(2, '0')
   const secs = (timeLeft % 60).toString().padStart(2, '0')
 
@@ -65,7 +58,6 @@ export function PomodoroWidget() {
             style={{
               background: mode === m ? 'var(--primary)' : 'transparent',
               color: mode === m ? '#fff' : 'var(--text-muted)',
-              fontFamily: "'DM Sans', sans-serif",
             }}
           >
             {MODES[m].label}
@@ -87,12 +79,7 @@ export function PomodoroWidget() {
         </svg>
         <span
           className="absolute tabular-nums"
-          style={{
-            fontFamily: "'Cormorant Garamond', serif",
-            fontSize: '26px',
-            fontWeight: 400,
-            color: 'var(--text)',
-          }}
+          style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: '26px', fontWeight: 400, color: 'var(--text)' }}
         >
           {mins}:{secs}
         </span>
@@ -100,7 +87,7 @@ export function PomodoroWidget() {
 
       <div className="flex items-center gap-3">
         <button
-          onClick={reset}
+          onClick={() => { setTimeLeft(MODES[mode].duration); setRunning(false) }}
           className="p-2 rounded-full transition-all"
           style={{ color: 'var(--text-muted)' }}
           onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg-muted)')}
@@ -121,7 +108,7 @@ export function PomodoroWidget() {
           <p style={{ fontSize: '14px', color: 'var(--text-sub)', fontWeight: 500 }}>
             {pomodoro.todaySessions}
           </p>
-          <p style={{ fontSize: '9px', color: 'var(--text-muted)' }}>today</p>
+          <p style={{ fontSize: '9px', color: 'var(--text-muted)' }}>今日</p>
         </div>
       </div>
     </div>

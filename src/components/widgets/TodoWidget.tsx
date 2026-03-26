@@ -21,31 +21,19 @@ export function TodoWidget() {
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && handleAdd()}
-          placeholder="Add task..."
-          className="flex-1 rounded-lg px-3 py-1.5 text-sm outline-none transition-colors"
-          style={{
-            background: 'var(--bg-muted)',
-            border: '1.5px solid var(--border)',
-            color: 'var(--text)',
-            fontFamily: "'DM Sans', sans-serif",
-          }}
+          placeholder="添加任务..."
+          className="flex-1 rounded-lg px-3 py-1.5 text-sm outline-none"
+          style={{ background: 'var(--bg-muted)', border: '1.5px solid var(--border)', color: 'var(--text)' }}
         />
-        <button
-          onClick={handleAdd}
-          className="p-1.5 rounded-lg text-white transition-colors"
-          style={{ background: 'var(--primary)' }}
-        >
+        <button onClick={handleAdd} className="p-1.5 rounded-lg text-white" style={{ background: 'var(--primary)' }}>
           <Plus size={14} />
         </button>
       </div>
 
       <div className="flex-1 overflow-y-auto flex flex-col gap-1 pr-1">
         {todos.length === 0 && (
-          <p
-            className="text-sm text-center mt-4"
-            style={{ color: 'var(--text-muted)' }}
-          >
-            No tasks yet
+          <p className="text-sm text-center mt-4" style={{ color: 'var(--text-muted)' }}>
+            暂无任务
           </p>
         )}
         {todos.map((todo) => (
@@ -90,7 +78,7 @@ export function TodoWidget() {
       {todos.length > 0 && (
         <div className="flex items-center justify-between">
           <p style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
-            {doneCount}/{todos.length} completed
+            {doneCount}/{todos.length} 已完成
           </p>
           {doneCount > 0 && (
             <button
@@ -100,7 +88,7 @@ export function TodoWidget() {
               onMouseEnter={e => (e.currentTarget.style.color = 'var(--primary-dark)')}
               onMouseLeave={e => (e.currentTarget.style.color = 'var(--text-muted)')}
             >
-              <CheckCheck size={10} /> Clear done
+              <CheckCheck size={10} /> 清除已完成
             </button>
           )}
         </div>

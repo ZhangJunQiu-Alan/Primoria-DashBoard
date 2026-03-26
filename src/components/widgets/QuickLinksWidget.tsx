@@ -9,8 +9,7 @@ export function QuickLinksWidget() {
 
   function getFavicon(url: string) {
     try {
-      const origin = new URL(url).origin
-      return `${origin}/favicon.ico`
+      return `${new URL(url).origin}/favicon.ico`
     } catch {
       return null
     }
@@ -24,7 +23,7 @@ export function QuickLinksWidget() {
       setForm({ title: '', url: '' })
       setAdding(false)
     } catch {
-      // invalid URL
+      // URL 格式错误
     }
   }
 
@@ -40,7 +39,6 @@ export function QuickLinksWidget() {
               target="_blank"
               rel="noopener noreferrer"
               className="group relative flex flex-col items-center gap-1 p-2 rounded-xl transition-colors w-16"
-              style={{ color: 'var(--text-sub)' }}
               onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg-muted)')}
               onMouseLeave={e => (e.currentTarget.style.background = '')}
               title={link.title}
@@ -70,10 +68,7 @@ export function QuickLinksWidget() {
                   <Link2 size={14} style={{ color: 'var(--text-muted)' }} />
                 </div>
               )}
-              <span
-                className="truncate w-full text-center"
-                style={{ fontSize: '10px', color: 'var(--text-muted)' }}
-              >
+              <span className="truncate w-full text-center" style={{ fontSize: '10px', color: 'var(--text-muted)' }}>
                 {link.title}
               </span>
             </a>
@@ -87,61 +82,40 @@ export function QuickLinksWidget() {
           onMouseLeave={e => (e.currentTarget.style.background = '')}
         >
           <div
-            className="w-8 h-8 rounded-lg flex items-center justify-center border border-dashed transition-colors"
+            className="w-8 h-8 rounded-lg flex items-center justify-center border border-dashed"
             style={{ borderColor: 'var(--border)' }}
           >
             <Plus size={14} style={{ color: 'var(--text-muted)' }} />
           </div>
-          <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>Add</span>
+          <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>添加</span>
         </button>
       </div>
 
       {adding && (
-        <div
-          className="flex flex-col gap-2 p-2 rounded-xl"
-          style={{ background: 'var(--bg-muted)' }}
-        >
+        <div className="flex flex-col gap-2 p-2 rounded-xl" style={{ background: 'var(--bg-muted)' }}>
           <input
             autoFocus
-            placeholder="URL (required)"
+            placeholder="网址（必填）"
             value={form.url}
             onChange={(e) => setForm((f) => ({ ...f, url: e.target.value }))}
             onKeyDown={(e) => e.key === 'Enter' && handleAdd()}
-            className="rounded-lg px-2 py-1 text-xs outline-none transition-colors"
-            style={{
-              background: 'var(--bg-card)',
-              border: '1.5px solid var(--border)',
-              color: 'var(--text)',
-              fontFamily: "'DM Sans', sans-serif",
-            }}
+            className="rounded-lg px-2 py-1 text-xs outline-none"
+            style={{ background: 'var(--bg-card)', border: '1.5px solid var(--border)', color: 'var(--text)' }}
           />
           <input
-            placeholder="Title (optional)"
+            placeholder="名称（可选）"
             value={form.title}
             onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
             onKeyDown={(e) => e.key === 'Enter' && handleAdd()}
-            className="rounded-lg px-2 py-1 text-xs outline-none transition-colors"
-            style={{
-              background: 'var(--bg-card)',
-              border: '1.5px solid var(--border)',
-              color: 'var(--text)',
-              fontFamily: "'DM Sans', sans-serif",
-            }}
+            className="rounded-lg px-2 py-1 text-xs outline-none"
+            style={{ background: 'var(--bg-card)', border: '1.5px solid var(--border)', color: 'var(--text)' }}
           />
           <div className="flex gap-2">
-            <button
-              onClick={handleAdd}
-              className="flex-1 text-xs rounded-lg py-1 transition-colors text-white font-medium"
-              style={{ background: 'var(--primary)' }}
-            >
-              Add
+            <button onClick={handleAdd} className="flex-1 text-xs rounded-lg py-1 text-white font-medium" style={{ background: 'var(--primary)' }}>
+              确认
             </button>
-            <button
-              onClick={() => setAdding(false)}
-              className="flex-1 text-xs rounded-lg py-1 transition-colors"
-              style={{ background: 'var(--border)', color: 'var(--text-sub)' }}
-            >
-              Cancel
+            <button onClick={() => setAdding(false)} className="flex-1 text-xs rounded-lg py-1" style={{ background: 'var(--border)', color: 'var(--text-sub)' }}>
+              取消
             </button>
           </div>
         </div>

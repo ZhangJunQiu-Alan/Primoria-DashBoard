@@ -14,17 +14,13 @@ export function NotesWidget() {
       <textarea
         value={content}
         onChange={(e) => setContent(e.target.value)}
-        placeholder="Start typing..."
+        placeholder="开始记录..."
         className="flex-1 resize-none outline-none leading-relaxed text-sm"
-        style={{
-          background: 'transparent',
-          color: 'var(--text)',
-          fontFamily: "'DM Sans', sans-serif",
-        }}
+        style={{ background: 'transparent', color: 'var(--text)', fontFamily: "'DM Sans', sans-serif" }}
         spellCheck={false}
       />
       <p style={{ fontSize: '11px', color: 'var(--text-muted)', textAlign: 'right' }}>
-        {content.length} chars
+        {content.length} 字
       </p>
     </div>
   )

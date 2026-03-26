@@ -7,11 +7,11 @@ import { TodoWidget } from '@/components/widgets/TodoWidget'
 import { PomodoroWidget } from '@/components/widgets/PomodoroWidget'
 
 const WIDGET_TITLES: Record<WidgetType, string> = {
-  clock: 'Clock',
-  'quick-links': 'Quick Links',
-  notes: 'Notes',
-  todo: 'Todo',
-  pomodoro: 'Pomodoro',
+  clock: '时钟',
+  'quick-links': '快速链接',
+  notes: '便签',
+  todo: '待办事项',
+  pomodoro: '番茄钟',
 }
 
 const WIDGET_MAP: Record<WidgetType, React.ComponentType> = {
@@ -30,6 +30,8 @@ interface WidgetShellProps {
 
 export function WidgetShell({ type, onRemove, showHeader }: WidgetShellProps) {
   const Component = WIDGET_MAP[type]
+
+  if (!Component) return null
 
   return (
     <div className="widget-card h-full flex flex-col">
@@ -64,14 +66,13 @@ export function WidgetShell({ type, onRemove, showHeader }: WidgetShellProps) {
               e.currentTarget.style.background = ''
               e.currentTarget.style.color = 'var(--text-muted)'
             }}
-            title="Remove widget"
+            title="移除组件"
           >
             <X size={12} />
           </button>
         </div>
       )}
 
-      {/* When header is hidden, still need an invisible drag handle */}
       {!showHeader && (
         <div className="drag-handle absolute inset-0 z-0 cursor-grab active:cursor-grabbing" />
       )}

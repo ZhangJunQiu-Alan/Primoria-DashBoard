@@ -27,7 +27,7 @@ export function AIChatPanel({ open, onClose }: AIChatPanelProps) {
     const reply: Message = {
       id: (Date.now() + 1).toString(),
       role: 'assistant',
-      content: 'AI backend not connected yet. Configure your API key to enable responses.',
+      content: 'AI 功能尚未接入，请配置 API Key 后使用。',
     }
     setMessages((prev) => [...prev, userMsg, reply])
     setInput('')
@@ -35,7 +35,6 @@ export function AIChatPanel({ open, onClose }: AIChatPanelProps) {
 
   return (
     <>
-      {/* Backdrop */}
       {open && (
         <div
           className="fixed inset-0 z-40"
@@ -44,7 +43,6 @@ export function AIChatPanel({ open, onClose }: AIChatPanelProps) {
         />
       )}
 
-      {/* Side panel */}
       <div
         className="fixed top-0 right-0 h-full z-50 flex flex-col"
         style={{
@@ -56,7 +54,7 @@ export function AIChatPanel({ open, onClose }: AIChatPanelProps) {
           transition: 'transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
         }}
       >
-        {/* Header */}
+        {/* 顶部 */}
         <div
           className="flex items-center gap-3 px-4 py-3 flex-shrink-0"
           style={{ borderBottom: '1px solid var(--border)' }}
@@ -71,16 +69,14 @@ export function AIChatPanel({ open, onClose }: AIChatPanelProps) {
             <p
               style={{
                 fontFamily: "'Cormorant Garamond', serif",
-                fontSize: '15px',
+                fontSize: '16px',
                 fontWeight: 500,
                 color: 'var(--text)',
               }}
             >
-              AI Assistant
+              AI 助手
             </p>
-            <p style={{ fontSize: '10px', color: 'var(--text-muted)', letterSpacing: '0.04em' }}>
-              Not configured
-            </p>
+            <p style={{ fontSize: '10px', color: 'var(--text-muted)' }}>暂未配置</p>
           </div>
           <button
             onClick={onClose}
@@ -93,14 +89,14 @@ export function AIChatPanel({ open, onClose }: AIChatPanelProps) {
           </button>
         </div>
 
-        {/* Messages */}
+        {/* 消息区 */}
         <div className="flex-1 overflow-y-auto flex flex-col gap-3 p-4">
           {messages.length === 0 && (
             <div className="flex flex-col items-center justify-center h-full gap-3 text-center">
               <Bot size={36} style={{ color: 'var(--border)' }} />
-              <p style={{ fontSize: '14px', color: 'var(--text-muted)' }}>Ask me anything</p>
+              <p style={{ fontSize: '14px', color: 'var(--text-muted)' }}>有什么可以帮你的？</p>
               <p style={{ fontSize: '11px', color: 'var(--text-muted)', opacity: 0.7, maxWidth: '200px' }}>
-                Connect your API key in settings to enable AI responses
+                配置 API Key 后即可开始对话
               </p>
             </div>
           )}
@@ -126,7 +122,7 @@ export function AIChatPanel({ open, onClose }: AIChatPanelProps) {
           <div ref={bottomRef} />
         </div>
 
-        {/* Input */}
+        {/* 输入框 */}
         <div
           className="flex gap-2 items-end p-4 flex-shrink-0"
           style={{ borderTop: '1px solid var(--border)' }}
@@ -140,9 +136,9 @@ export function AIChatPanel({ open, onClose }: AIChatPanelProps) {
                 send()
               }
             }}
-            placeholder="Message... (Enter to send)"
+            placeholder="发送消息… (Enter 发送)"
             rows={1}
-            className="flex-1 rounded-xl px-3 py-2 text-sm outline-none resize-none transition-colors"
+            className="flex-1 rounded-xl px-3 py-2 text-sm outline-none resize-none"
             style={{
               background: 'var(--bg-muted)',
               border: '1.5px solid var(--border)',
@@ -153,7 +149,7 @@ export function AIChatPanel({ open, onClose }: AIChatPanelProps) {
           <button
             onClick={send}
             disabled={!input.trim()}
-            className="p-2 rounded-xl text-white transition-all flex-shrink-0"
+            className="p-2 rounded-xl flex-shrink-0 transition-all"
             style={{ background: input.trim() ? 'var(--primary)' : 'var(--border)' }}
           >
             <Send size={14} style={{ color: input.trim() ? '#fff' : 'var(--text-muted)' }} />

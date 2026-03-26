@@ -7,16 +7,16 @@ interface WidgetDef {
   type: WidgetType
   name: string
   description: string
-  icon: React.ComponentType<{ size?: number; className?: string; style?: React.CSSProperties }>
+  icon: React.ComponentType<{ size?: number; style?: React.CSSProperties }>
   category: string
 }
 
 const WIDGET_DEFS: WidgetDef[] = [
-  { type: 'clock', name: 'Clock', description: 'Current time and date', icon: Clock, category: 'Information' },
-  { type: 'quick-links', name: 'Quick Links', description: 'Your favorite bookmarks at a glance', icon: Link2, category: 'Productivity' },
-  { type: 'notes', name: 'Notes', description: 'Scratch pad for quick notes', icon: FileText, category: 'Productivity' },
-  { type: 'todo', name: 'Todo', description: 'Track your tasks', icon: CheckSquare, category: 'Productivity' },
-  { type: 'pomodoro', name: 'Pomodoro', description: 'Focus timer with breaks', icon: Timer, category: 'Productivity' },
+  { type: 'clock', name: '时钟', description: '显示当前时间与日期', icon: Clock, category: '信息' },
+  { type: 'quick-links', name: '快速链接', description: '常用书签，一键直达', icon: Link2, category: '效率' },
+  { type: 'notes', name: '便签', description: '随手记录想法', icon: FileText, category: '效率' },
+  { type: 'todo', name: '待办事项', description: '管理每日任务', icon: CheckSquare, category: '效率' },
+  { type: 'pomodoro', name: '番茄钟', description: '专注计时，劳逸结合', icon: Timer, category: '效率' },
 ]
 
 interface Props {
@@ -31,11 +31,8 @@ export function AddWidgetModal({ open, onClose }: Props) {
   if (!open) return null
 
   const filtered = WIDGET_DEFS.filter(
-    (w) =>
-      w.name.toLowerCase().includes(search.toLowerCase()) ||
-      w.description.toLowerCase().includes(search.toLowerCase())
+    (w) => w.name.includes(search) || w.description.includes(search)
   )
-
   const categories = [...new Set(filtered.map((w) => w.category))]
 
   function handleAdd(type: WidgetType) {
@@ -44,16 +41,13 @@ export function AddWidgetModal({ open, onClose }: Props) {
   }
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center"
-      onClick={onClose}
-    >
+    <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={onClose}>
       <div
         className="absolute inset-0"
         style={{ background: 'rgba(61,52,42,0.3)', backdropFilter: 'blur(6px)' }}
       />
       <div
-        className="relative w-full max-w-2xl max-h-[80vh] flex flex-col overflow-hidden"
+        className="relative w-full max-w-xl max-h-[75vh] flex flex-col overflow-hidden"
         style={{
           background: 'var(--bg-card)',
           border: '1px solid var(--border)',
@@ -62,7 +56,7 @@ export function AddWidgetModal({ open, onClose }: Props) {
         }}
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Header */}
+        {/* 标题栏 */}
         <div
           className="flex items-center justify-between px-6 py-4"
           style={{ borderBottom: '1px solid var(--border)' }}
@@ -75,7 +69,7 @@ export function AddWidgetModal({ open, onClose }: Props) {
               color: 'var(--text)',
             }}
           >
-            Add Widget
+            添加组件
           </h2>
           <button
             onClick={onClose}
@@ -88,29 +82,26 @@ export function AddWidgetModal({ open, onClose }: Props) {
           </button>
         </div>
 
-        {/* Search */}
+        {/* 搜索 */}
         <div className="px-6 py-3" style={{ borderBottom: '1px solid var(--border)' }}>
           <div
-            className="flex items-center gap-2 px-3 py-2 rounded-xl transition-colors"
-            style={{
-              background: 'var(--bg-muted)',
-              border: '1.5px solid var(--border)',
-            }}
+            className="flex items-center gap-2 px-3 py-2 rounded-xl"
+            style={{ background: 'var(--bg-muted)', border: '1.5px solid var(--border)' }}
           >
             <Search size={14} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
             <input
               autoFocus
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search widgets..."
+              placeholder="搜索组件..."
               className="flex-1 text-sm outline-none bg-transparent"
               style={{ color: 'var(--text)', fontFamily: "'DM Sans', sans-serif" }}
             />
           </div>
         </div>
 
-        {/* Widget list */}
-        <div className="flex-1 overflow-y-auto px-6 py-4 flex flex-col gap-6">
+        {/* 组件列表 */}
+        <div className="flex-1 overflow-y-auto px-6 py-4 flex flex-col gap-5">
           {categories.map((category) => (
             <div key={category}>
               <h3
@@ -137,11 +128,8 @@ export function AddWidgetModal({ open, onClose }: Props) {
                       <button
                         key={w.type}
                         onClick={() => handleAdd(w.type)}
-                        className="flex items-center gap-3 p-3 rounded-xl text-left transition-all group"
-                        style={{
-                          background: 'var(--bg-card)',
-                          border: '1px solid var(--border)',
-                        }}
+                        className="flex items-center gap-3 p-3 rounded-xl text-left transition-all"
+                        style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}
                         onMouseEnter={e => {
                           e.currentTarget.style.background = '#EFF6F0'
                           e.currentTarget.style.borderColor = 'var(--primary-light)'
@@ -152,22 +140,16 @@ export function AddWidgetModal({ open, onClose }: Props) {
                         }}
                       >
                         <div
-                          className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 transition-colors"
+                          className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
                           style={{ background: '#EAF4EB' }}
                         >
                           <Icon size={18} style={{ color: 'var(--primary-dark)' }} />
                         </div>
                         <div>
-                          <p
-                            className="font-medium"
-                            style={{ fontSize: '13px', color: 'var(--text)' }}
-                          >
+                          <p style={{ fontSize: '13px', fontWeight: 500, color: 'var(--text)' }}>
                             {w.name}
                           </p>
-                          <p
-                            className="leading-tight"
-                            style={{ fontSize: '11px', color: 'var(--text-muted)' }}
-                          >
+                          <p style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
                             {w.description}
                           </p>
                         </div>
@@ -179,7 +161,7 @@ export function AddWidgetModal({ open, onClose }: Props) {
           ))}
           {filtered.length === 0 && (
             <p className="text-sm text-center py-8" style={{ color: 'var(--text-muted)' }}>
-              No widgets found
+              未找到相关组件
             </p>
           )}
         </div>

@@ -2,6 +2,8 @@ import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import type { WidgetInstance, LayoutItem, WidgetType } from '@/types/widget'
 
+const VALID_TYPES: WidgetType[] = ['clock', 'quick-links', 'notes', 'todo', 'pomodoro']
+
 interface DashboardState {
   widgets: WidgetInstance[]
   layout: LayoutItem[]
@@ -44,19 +46,12 @@ export const useDashboardStore = create<DashboardState>()(
         const { layout } = get()
         const maxY = layout.reduce((acc, item) => Math.max(acc, item.y + item.h), 0)
 
-        const newLayoutItem: LayoutItem = {
-          i: id,
-          x: 0,
-          y: maxY,
-          w: size.w,
-          h: size.h,
-          minW: size.minW,
-          minH: size.minH,
-        }
-
         set((state) => ({
           widgets: [...state.widgets, { id, type }],
-          layout: [...state.layout, newLayoutItem],
+          layout: [
+            ...state.layout,
+            { i: id, x: 0, y: maxY, w: size.w, h: size.h, minW: size.minW, minH: size.minH },
+          ],
         }))
       },
 
@@ -71,6 +66,20 @@ export const useDashboardStore = create<DashboardState>()(
     }),
     {
       name: 'primoria-dashboard',
+      version: 2,
+      migrate: (persisted) => {
+        // Filter out widgets whose type no longer exists
+        const state = persisted as DashboardState
+        const validWidgets = state.widgets.filter((w) =>
+          VALID_TYPES.includes(w.type as WidgetType)
+        )
+        const validIds = new Set(validWidgets.map((w) => w.id))
+        return {
+          ...state,
+          widgets: validWidgets,
+          layout: state.layout.filter((l) => validIds.has(l.i)),
+        }
+      },
     }
   )
 )
