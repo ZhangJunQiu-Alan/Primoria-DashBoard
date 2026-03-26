@@ -15,10 +15,17 @@ export function NotesWidget() {
         value={content}
         onChange={(e) => setContent(e.target.value)}
         placeholder="Start typing..."
-        className="flex-1 bg-transparent text-white/80 text-sm resize-none outline-none placeholder:text-white/20 leading-relaxed"
+        className="flex-1 resize-none outline-none leading-relaxed text-sm"
+        style={{
+          background: 'transparent',
+          color: 'var(--text)',
+          fontFamily: "'DM Sans', sans-serif",
+        }}
         spellCheck={false}
       />
-      <p className="text-white/20 text-xs text-right">{content.length} chars</p>
+      <p style={{ fontSize: '11px', color: 'var(--text-muted)', textAlign: 'right' }}>
+        {content.length} chars
+      </p>
     </div>
   )
 }

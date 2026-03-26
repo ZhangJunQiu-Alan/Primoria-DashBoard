@@ -20,11 +20,22 @@ export function ClockWidget() {
 
   return (
     <div className="flex flex-col items-center justify-center h-full gap-1 select-none">
-      <div className="text-5xl font-light tracking-widest text-white tabular-nums">
+      <div
+        className="tabular-nums"
+        style={{
+          fontFamily: "'Cormorant Garamond', serif",
+          fontSize: '48px',
+          fontWeight: 400,
+          letterSpacing: '0.05em',
+          color: 'var(--text)',
+        }}
+      >
         {hours}:{minutes}
-        <span className="text-3xl text-white/40">:{seconds}</span>
+        <span style={{ fontSize: '30px', color: 'var(--text-muted)' }}>:{seconds}</span>
       </div>
-      <div className="text-sm text-white/40">{dateStr}</div>
+      <div style={{ fontSize: '12px', color: 'var(--text-muted)', letterSpacing: '0.04em' }}>
+        {dateStr}
+      </div>
     </div>
   )
 }

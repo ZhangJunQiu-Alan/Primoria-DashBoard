@@ -7,7 +7,6 @@ interface Message {
   content: string
 }
 
-// UI placeholder — AI backend not yet connected
 export function AIChatWidget() {
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState('')
@@ -31,30 +30,67 @@ export function AIChatWidget() {
 
   return (
     <div className="flex flex-col h-full gap-2">
-      <div className="flex items-center gap-2 pb-2 border-b border-white/5">
-        <div className="w-6 h-6 rounded-full bg-gradient-to-br from-purple-500 to-blue-500 flex items-center justify-center">
-          <Sparkles size={12} />
+      <div
+        className="flex items-center gap-2 pb-2"
+        style={{ borderBottom: '1px solid var(--border)' }}
+      >
+        <div
+          className="w-6 h-6 rounded-full flex items-center justify-center text-white"
+          style={{ background: 'linear-gradient(135deg, var(--primary-light), var(--secondary))' }}
+        >
+          <Sparkles size={11} />
         </div>
-        <span className="text-white/60 text-sm font-medium">AI Assistant</span>
-        <span className="ml-auto text-[10px] text-white/20 bg-white/5 px-2 py-0.5 rounded-full">Not configured</span>
+        <span
+          className="font-medium"
+          style={{
+            fontFamily: "'Cormorant Garamond', serif",
+            fontSize: '14px',
+            color: 'var(--text)',
+          }}
+        >
+          AI Assistant
+        </span>
+        <span
+          className="ml-auto px-2 py-0.5 rounded-full"
+          style={{
+            fontSize: '10px',
+            color: 'var(--text-muted)',
+            background: 'var(--bg-muted)',
+            letterSpacing: '0.04em',
+          }}
+        >
+          Not configured
+        </span>
       </div>
 
       <div className="flex-1 overflow-y-auto flex flex-col gap-3 pr-1">
         {messages.length === 0 && (
           <div className="flex flex-col items-center justify-center h-full gap-2 text-center">
-            <Bot size={32} className="text-white/10" />
-            <p className="text-white/20 text-sm">Ask me anything</p>
-            <p className="text-white/10 text-xs">Connect your API key in settings to start</p>
+            <Bot size={32} style={{ color: 'var(--border)' }} />
+            <p style={{ fontSize: '13px', color: 'var(--text-muted)' }}>Ask me anything</p>
+            <p style={{ fontSize: '11px', color: 'var(--text-muted)', opacity: 0.7 }}>
+              Connect your API key in settings to start
+            </p>
           </div>
         )}
         {messages.map((msg) => (
           <div key={msg.id} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
             <div
-              className={`max-w-[85%] rounded-2xl px-3 py-2 text-sm leading-relaxed ${
+              className="max-w-[85%] rounded-2xl px-3 py-2 text-sm leading-relaxed"
+              style={
                 msg.role === 'user'
-                  ? 'bg-[var(--accent)] text-white rounded-br-sm'
-                  : 'bg-white/5 text-white/70 rounded-bl-sm'
-              }`}
+                  ? {
+                      background: 'var(--primary)',
+                      color: '#fff',
+                      borderBottomRightRadius: '4px',
+                    }
+                  : {
+                      background: 'var(--bg-muted)',
+                      color: 'var(--text-sub)',
+                      borderBottomLeftRadius: '4px',
+                      border: '1px solid var(--border)',
+                    }
+              }
             >
               {msg.content}
             </div>
@@ -75,14 +111,21 @@ export function AIChatWidget() {
           }}
           placeholder="Message..."
           rows={1}
-          className="flex-1 bg-white/5 rounded-xl px-3 py-2 text-sm text-white outline-none border border-white/10 focus:border-white/30 resize-none placeholder:text-white/20"
+          className="flex-1 rounded-xl px-3 py-2 text-sm outline-none resize-none transition-colors"
+          style={{
+            background: 'var(--bg-muted)',
+            border: '1.5px solid var(--border)',
+            color: 'var(--text)',
+            fontFamily: "'DM Sans', sans-serif",
+          }}
         />
         <button
           onClick={send}
           disabled={!input.trim()}
-          className="p-2 rounded-xl bg-[var(--accent)] hover:bg-[var(--accent-hover)] disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+          className="p-2 rounded-xl text-white transition-all"
+          style={{ background: input.trim() ? 'var(--primary)' : 'var(--border)' }}
         >
-          <Send size={14} />
+          <Send size={14} style={{ color: input.trim() ? '#fff' : 'var(--text-muted)' }} />
         </button>
       </div>
     </div>

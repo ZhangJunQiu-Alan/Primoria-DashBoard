@@ -56,14 +56,17 @@ export function PomodoroWidget() {
 
   return (
     <div className="flex flex-col items-center justify-between h-full gap-2">
-      <div className="flex gap-1 text-xs">
+      <div className="flex gap-1" style={{ fontSize: '11px' }}>
         {(Object.keys(MODES) as Mode[]).map((m) => (
           <button
             key={m}
             onClick={() => switchMode(m)}
-            className={`px-2 py-1 rounded-lg transition-colors ${
-              mode === m ? 'bg-[var(--accent)] text-white' : 'text-white/40 hover:text-white/70'
-            }`}
+            className="px-2 py-1 rounded-lg transition-colors"
+            style={{
+              background: mode === m ? 'var(--primary)' : 'transparent',
+              color: mode === m ? '#fff' : 'var(--text-muted)',
+              fontFamily: "'DM Sans', sans-serif",
+            }}
           >
             {MODES[m].label}
           </button>
@@ -72,32 +75,53 @@ export function PomodoroWidget() {
 
       <div className="relative flex items-center justify-center">
         <svg width="110" height="110" className="-rotate-90">
-          <circle cx="55" cy="55" r="45" fill="none" stroke="rgba(255,255,255,0.05)" strokeWidth="4" />
+          <circle cx="55" cy="55" r="45" fill="none" stroke="var(--bg-muted)" strokeWidth="4" />
           <circle
             cx="55" cy="55" r="45" fill="none"
-            stroke="var(--accent)" strokeWidth="4"
+            stroke="var(--primary)" strokeWidth="4"
             strokeLinecap="round"
             strokeDasharray={circumference}
             strokeDashoffset={dashOffset}
             className="transition-all duration-1000"
           />
         </svg>
-        <span className="absolute text-2xl font-light tabular-nums text-white">{mins}:{secs}</span>
+        <span
+          className="absolute tabular-nums"
+          style={{
+            fontFamily: "'Cormorant Garamond', serif",
+            fontSize: '26px',
+            fontWeight: 400,
+            color: 'var(--text)',
+          }}
+        >
+          {mins}:{secs}
+        </span>
       </div>
 
       <div className="flex items-center gap-3">
-        <button onClick={reset} className="p-2 rounded-full text-white/30 hover:text-white/60 hover:bg-white/5 transition-all">
+        <button
+          onClick={reset}
+          className="p-2 rounded-full transition-all"
+          style={{ color: 'var(--text-muted)' }}
+          onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg-muted)')}
+          onMouseLeave={e => (e.currentTarget.style.background = '')}
+        >
           <RotateCcw size={14} />
         </button>
         <button
           onClick={() => setRunning((r) => !r)}
-          className="p-3 rounded-full bg-[var(--accent)] hover:bg-[var(--accent-hover)] transition-colors"
+          className="p-3 rounded-full text-white transition-colors"
+          style={{ background: 'var(--primary)' }}
+          onMouseEnter={e => (e.currentTarget.style.background = 'var(--primary-dark)')}
+          onMouseLeave={e => (e.currentTarget.style.background = 'var(--primary)')}
         >
           {running ? <Pause size={16} /> : <Play size={16} />}
         </button>
         <div className="text-center w-10">
-          <p className="text-white/60 text-sm tabular-nums">{pomodoro.todaySessions}</p>
-          <p className="text-white/20 text-[9px]">today</p>
+          <p style={{ fontSize: '14px', color: 'var(--text-sub)', fontWeight: 500 }}>
+            {pomodoro.todaySessions}
+          </p>
+          <p style={{ fontSize: '9px', color: 'var(--text-muted)' }}>today</p>
         </div>
       </div>
     </div>

@@ -22,35 +22,64 @@ export function TodoWidget() {
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && handleAdd()}
           placeholder="Add task..."
-          className="flex-1 bg-white/5 rounded-lg px-3 py-1.5 text-sm text-white outline-none border border-white/10 focus:border-white/30 placeholder:text-white/20"
+          className="flex-1 rounded-lg px-3 py-1.5 text-sm outline-none transition-colors"
+          style={{
+            background: 'var(--bg-muted)',
+            border: '1.5px solid var(--border)',
+            color: 'var(--text)',
+            fontFamily: "'DM Sans', sans-serif",
+          }}
         />
-        <button onClick={handleAdd} className="p-1.5 rounded-lg bg-[var(--accent)] hover:bg-[var(--accent-hover)] transition-colors">
+        <button
+          onClick={handleAdd}
+          className="p-1.5 rounded-lg text-white transition-colors"
+          style={{ background: 'var(--primary)' }}
+        >
           <Plus size={14} />
         </button>
       </div>
 
       <div className="flex-1 overflow-y-auto flex flex-col gap-1 pr-1">
         {todos.length === 0 && (
-          <p className="text-white/20 text-sm text-center mt-4">No tasks yet</p>
+          <p
+            className="text-sm text-center mt-4"
+            style={{ color: 'var(--text-muted)' }}
+          >
+            No tasks yet
+          </p>
         )}
         {todos.map((todo) => (
-          <div key={todo.id} className="flex items-center gap-2 group px-1 py-0.5 rounded-lg hover:bg-white/5">
+          <div
+            key={todo.id}
+            className="flex items-center gap-2 group px-1 py-1 rounded-lg transition-colors"
+            onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg-muted)')}
+            onMouseLeave={e => (e.currentTarget.style.background = '')}
+          >
             <button
               onClick={() => toggleTodo(todo.id)}
-              className={`w-4 h-4 rounded-full border flex-shrink-0 flex items-center justify-center transition-colors ${
-                todo.done
-                  ? 'bg-[var(--accent)] border-[var(--accent)]'
-                  : 'border-white/20 hover:border-white/40'
-              }`}
+              className="w-4 h-4 rounded-full border flex-shrink-0 flex items-center justify-center transition-colors"
+              style={{
+                background: todo.done ? 'var(--primary)' : 'transparent',
+                borderColor: todo.done ? 'var(--primary)' : 'var(--border)',
+              }}
             >
-              {todo.done && <span className="text-white text-[8px]">✓</span>}
+              {todo.done && <span className="text-white" style={{ fontSize: '8px' }}>✓</span>}
             </button>
-            <span className={`flex-1 text-sm ${todo.done ? 'line-through text-white/30' : 'text-white/80'}`}>
+            <span
+              className="flex-1 text-sm"
+              style={{
+                textDecoration: todo.done ? 'line-through' : 'none',
+                color: todo.done ? 'var(--text-muted)' : 'var(--text)',
+              }}
+            >
               {todo.text}
             </span>
             <button
               onClick={() => removeTodo(todo.id)}
-              className="opacity-0 group-hover:opacity-100 text-white/30 hover:text-red-400 transition-all"
+              className="opacity-0 group-hover:opacity-100 transition-all"
+              style={{ color: 'var(--text-muted)' }}
+              onMouseEnter={e => (e.currentTarget.style.color = '#C4807A')}
+              onMouseLeave={e => (e.currentTarget.style.color = 'var(--text-muted)')}
             >
               <Trash2 size={12} />
             </button>
@@ -60,11 +89,16 @@ export function TodoWidget() {
 
       {todos.length > 0 && (
         <div className="flex items-center justify-between">
-          <p className="text-white/20 text-xs">{doneCount}/{todos.length} completed</p>
+          <p style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+            {doneCount}/{todos.length} completed
+          </p>
           {doneCount > 0 && (
             <button
               onClick={clearDoneTodos}
-              className="flex items-center gap-1 text-white/20 hover:text-white/50 text-xs transition-colors"
+              className="flex items-center gap-1 transition-colors"
+              style={{ fontSize: '11px', color: 'var(--text-muted)' }}
+              onMouseEnter={e => (e.currentTarget.style.color = 'var(--primary-dark)')}
+              onMouseLeave={e => (e.currentTarget.style.color = 'var(--text-muted)')}
             >
               <CheckCheck size={10} /> Clear done
             </button>

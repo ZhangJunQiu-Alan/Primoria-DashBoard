@@ -1,5 +1,4 @@
 import { X } from 'lucide-react'
-import { cn } from '@/lib/utils'
 import type { WidgetType } from '@/types/widget'
 import { ClockWidget } from '@/components/widgets/ClockWidget'
 import { WeatherWidget } from '@/components/widgets/WeatherWidget'
@@ -32,38 +31,50 @@ const WIDGET_MAP: Record<WidgetType, React.ComponentType> = {
 interface WidgetShellProps {
   type: WidgetType
   onRemove: () => void
-  className?: string
 }
 
-export function WidgetShell({ type, onRemove, className }: WidgetShellProps) {
+export function WidgetShell({ type, onRemove }: WidgetShellProps) {
   const Component = WIDGET_MAP[type]
 
   return (
-    <div
-      className={cn(
-        'flex flex-col rounded-2xl overflow-hidden h-full',
-        'bg-[var(--bg-widget)] border border-[var(--border-color)]',
-        'backdrop-blur-sm shadow-lg',
-        className
-      )}
-    >
-      {/* Drag handle + title bar */}
-      <div className="drag-handle flex items-center px-4 py-2.5 border-b border-white/5 cursor-grab active:cursor-grabbing select-none group/header">
-        <span className="text-white/40 text-xs font-medium tracking-wide flex-1">
+    <div className="widget-card h-full flex flex-col">
+      {/* Drag handle */}
+      <div
+        className="drag-handle flex items-center px-4 py-2.5 cursor-grab active:cursor-grabbing select-none group/header"
+        style={{ borderBottom: '1px solid var(--border)' }}
+      >
+        <span
+          className="flex-1 text-xs font-medium tracking-wide"
+          style={{
+            fontFamily: "'Cormorant Garamond', serif",
+            fontSize: '12px',
+            letterSpacing: '0.12em',
+            textTransform: 'uppercase',
+            color: 'var(--text-muted)',
+          }}
+        >
           {WIDGET_TITLES[type]}
         </span>
         <button
           onMouseDown={(e) => e.stopPropagation()}
           onClick={onRemove}
-          className="opacity-0 group-hover/header:opacity-100 p-1 rounded-lg text-white/30 hover:text-white/70 hover:bg-white/10 transition-all"
+          className="opacity-0 group-hover/header:opacity-100 p-1 rounded-lg transition-all"
+          style={{ color: 'var(--text-muted)' }}
+          onMouseEnter={e => {
+            e.currentTarget.style.background = 'var(--bg-muted)'
+            e.currentTarget.style.color = 'var(--text)'
+          }}
+          onMouseLeave={e => {
+            e.currentTarget.style.background = ''
+            e.currentTarget.style.color = 'var(--text-muted)'
+          }}
           title="Remove widget"
         >
           <X size={12} />
         </button>
       </div>
 
-      {/* Widget content */}
-      <div className="flex-1 overflow-hidden p-3">
+      <div className="widget-content flex-1 overflow-hidden p-3">
         <Component />
       </div>
     </div>

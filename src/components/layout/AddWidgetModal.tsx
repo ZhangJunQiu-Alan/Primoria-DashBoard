@@ -7,7 +7,7 @@ interface WidgetDef {
   type: WidgetType
   name: string
   description: string
-  icon: React.ComponentType<{ size?: number; className?: string }>
+  icon: React.ComponentType<{ size?: number; className?: string; style?: React.CSSProperties }>
   category: string
 }
 
@@ -50,29 +50,63 @@ export function AddWidgetModal({ open, onClose }: Props) {
       className="fixed inset-0 z-50 flex items-center justify-center"
       onClick={onClose}
     >
-      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
       <div
-        className="relative w-full max-w-2xl max-h-[80vh] bg-[#1a1a24] border border-white/10 rounded-2xl shadow-2xl flex flex-col overflow-hidden"
+        className="absolute inset-0"
+        style={{ background: 'rgba(61,52,42,0.3)', backdropFilter: 'blur(6px)' }}
+      />
+      <div
+        className="relative w-full max-w-2xl max-h-[80vh] flex flex-col overflow-hidden"
+        style={{
+          background: 'var(--bg-card)',
+          border: '1px solid var(--border)',
+          borderRadius: 'var(--r-lg)',
+          boxShadow: '0 8px 40px rgba(90,70,50,0.18)',
+        }}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-white/5">
-          <h2 className="text-white font-semibold">Add Widget</h2>
-          <button onClick={onClose} className="p-1.5 rounded-lg text-white/40 hover:text-white/70 hover:bg-white/5 transition-all">
+        <div
+          className="flex items-center justify-between px-6 py-4"
+          style={{ borderBottom: '1px solid var(--border)' }}
+        >
+          <h2
+            style={{
+              fontFamily: "'Cormorant Garamond', serif",
+              fontSize: '20px',
+              fontWeight: 500,
+              color: 'var(--text)',
+            }}
+          >
+            Add Widget
+          </h2>
+          <button
+            onClick={onClose}
+            className="p-1.5 rounded-lg transition-all"
+            style={{ color: 'var(--text-muted)' }}
+            onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg-muted)')}
+            onMouseLeave={e => (e.currentTarget.style.background = '')}
+          >
             <X size={16} />
           </button>
         </div>
 
         {/* Search */}
-        <div className="px-6 py-3 border-b border-white/5">
-          <div className="flex items-center gap-2 bg-white/5 rounded-xl px-3 py-2 border border-white/10 focus-within:border-white/30 transition-colors">
-            <Search size={14} className="text-white/30 flex-shrink-0" />
+        <div className="px-6 py-3" style={{ borderBottom: '1px solid var(--border)' }}>
+          <div
+            className="flex items-center gap-2 px-3 py-2 rounded-xl transition-colors"
+            style={{
+              background: 'var(--bg-muted)',
+              border: '1.5px solid var(--border)',
+            }}
+          >
+            <Search size={14} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
             <input
               autoFocus
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search widgets..."
-              className="flex-1 bg-transparent text-sm text-white outline-none placeholder:text-white/20"
+              className="flex-1 text-sm outline-none bg-transparent"
+              style={{ color: 'var(--text)', fontFamily: "'DM Sans', sans-serif" }}
             />
           </div>
         </div>
@@ -81,7 +115,21 @@ export function AddWidgetModal({ open, onClose }: Props) {
         <div className="flex-1 overflow-y-auto px-6 py-4 flex flex-col gap-6">
           {categories.map((category) => (
             <div key={category}>
-              <h3 className="text-white/40 text-xs font-medium uppercase tracking-wider mb-3">{category}</h3>
+              <h3
+                className="mb-3"
+                style={{
+                  fontFamily: "'Cormorant Garamond', serif",
+                  fontSize: '11px',
+                  fontWeight: 600,
+                  letterSpacing: '0.18em',
+                  textTransform: 'uppercase',
+                  color: 'var(--text-muted)',
+                  borderBottom: '1px solid var(--border)',
+                  paddingBottom: '6px',
+                }}
+              >
+                {category}
+              </h3>
               <div className="grid grid-cols-2 gap-2">
                 {filtered
                   .filter((w) => w.category === category)
@@ -91,14 +139,39 @@ export function AddWidgetModal({ open, onClose }: Props) {
                       <button
                         key={w.type}
                         onClick={() => handleAdd(w.type)}
-                        className="flex items-center gap-3 p-3 rounded-xl bg-white/3 hover:bg-white/8 border border-white/5 hover:border-white/15 transition-all text-left group"
+                        className="flex items-center gap-3 p-3 rounded-xl text-left transition-all group"
+                        style={{
+                          background: 'var(--bg-card)',
+                          border: '1px solid var(--border)',
+                        }}
+                        onMouseEnter={e => {
+                          e.currentTarget.style.background = '#EFF6F0'
+                          e.currentTarget.style.borderColor = 'var(--primary-light)'
+                        }}
+                        onMouseLeave={e => {
+                          e.currentTarget.style.background = 'var(--bg-card)'
+                          e.currentTarget.style.borderColor = 'var(--border)'
+                        }}
                       >
-                        <div className="w-10 h-10 rounded-xl bg-[var(--accent)]/20 flex items-center justify-center flex-shrink-0 group-hover:bg-[var(--accent)]/30 transition-colors">
-                          <Icon size={18} className="text-[var(--accent-hover)]" />
+                        <div
+                          className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 transition-colors"
+                          style={{ background: '#EAF4EB' }}
+                        >
+                          <Icon size={18} style={{ color: 'var(--primary-dark)' }} />
                         </div>
                         <div>
-                          <p className="text-white/80 text-sm font-medium">{w.name}</p>
-                          <p className="text-white/30 text-xs leading-tight">{w.description}</p>
+                          <p
+                            className="font-medium"
+                            style={{ fontSize: '13px', color: 'var(--text)' }}
+                          >
+                            {w.name}
+                          </p>
+                          <p
+                            className="leading-tight"
+                            style={{ fontSize: '11px', color: 'var(--text-muted)' }}
+                          >
+                            {w.description}
+                          </p>
                         </div>
                       </button>
                     )
@@ -107,7 +180,9 @@ export function AddWidgetModal({ open, onClose }: Props) {
             </div>
           ))}
           {filtered.length === 0 && (
-            <p className="text-white/20 text-sm text-center py-8">No widgets found</p>
+            <p className="text-sm text-center py-8" style={{ color: 'var(--text-muted)' }}>
+              No widgets found
+            </p>
           )}
         </div>
       </div>

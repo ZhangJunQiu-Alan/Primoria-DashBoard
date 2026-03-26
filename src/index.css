@@ -1,51 +1,81 @@
+@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400&family=DM+Sans:wght@300;400;500&display=swap');
 @import "tailwindcss";
 
+/* ── Design tokens ───────────────────────────────────────────── */
 :root {
-  --bg-primary: #0f0f13;
-  --bg-secondary: #1a1a24;
-  --bg-widget: #16161f;
-  --border-color: rgba(255, 255, 255, 0.06);
-  --text-primary: #f0f0f5;
-  --text-secondary: #8b8b9e;
-  --accent: #7c5cbf;
-  --accent-hover: #9b7de0;
+  --bg:            #F7F3EC;
+  --bg-card:       #FEFAF5;
+  --bg-muted:      #EDE7DA;
+  --primary:       #7A9E7E;
+  --primary-light: #A8C5AC;
+  --primary-dark:  #5C7D60;
+  --secondary:     #C4956A;
+  --accent:        #D4B896;
+  --text:          #3D342A;
+  --text-sub:      #6B5D52;
+  --text-muted:    #9B8E85;
+  --border:        #DDD3C3;
+  --shadow:        rgba(90,70,50,0.09);
+  --shadow-md:     rgba(90,70,50,0.14);
+  --r-sm:          10px;
+  --r-md:          16px;
+  --r-lg:          22px;
 }
 
-* {
-  box-sizing: border-box;
-  margin: 0;
-  padding: 0;
-}
+/* ── Reset ───────────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; }
 
 body {
-  background-color: var(--bg-primary);
-  color: var(--text-primary);
-  font-family: system-ui, -apple-system, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'DM Sans', system-ui, sans-serif;
+  font-size: 14px;
+  line-height: 1.6;
+  min-height: 100vh;
+  margin: 0;
   -webkit-font-smoothing: antialiased;
-  min-height: 100vh;
 }
 
-#root {
-  min-height: 100vh;
+#root { min-height: 100vh; }
+
+/* ── Watercolor background ───────────────────────────────────── */
+body::before {
+  content: '';
+  position: fixed; inset: 0; pointer-events: none; z-index: 0;
+  background:
+    radial-gradient(ellipse 600px 400px at 10% 15%, rgba(168,197,172,0.18) 0%, transparent 70%),
+    radial-gradient(ellipse 500px 350px at 90% 80%, rgba(196,149,106,0.12) 0%, transparent 70%),
+    radial-gradient(ellipse 400px 300px at 50% 50%, rgba(212,184,150,0.10) 0%, transparent 70%),
+    radial-gradient(ellipse 300px 200px at 75% 20%, rgba(169,154,180,0.10) 0%, transparent 70%);
 }
 
-/* react-grid-layout */
+/* ── Widget card ─────────────────────────────────────────────── */
+.widget-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  box-shadow: 0 2px 12px var(--shadow), 0 1px 3px var(--shadow);
+  position: relative;
+  overflow: hidden;
+}
+.widget-card::before {
+  content: '';
+  position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
+  background: radial-gradient(ellipse 80% 60% at 20% 10%, rgba(255,255,255,0.55) 0%, transparent 60%);
+  z-index: 0;
+}
+.widget-content {
+  position: relative; z-index: 1;
+}
+
+/* ── react-grid-layout ───────────────────────────────────────── */
 .react-grid-item.react-grid-placeholder {
-  background: var(--accent);
-  opacity: 0.15;
-  border-radius: 12px;
+  background: var(--primary-light);
+  opacity: 0.25;
+  border-radius: var(--r-lg);
   transition: all 200ms ease;
 }
 
-.react-resizable-handle {
-  opacity: 0;
-  transition: opacity 0.2s;
-}
-
-.react-grid-item:hover .react-resizable-handle {
-  opacity: 1;
-}
-
-.react-resizable-handle::after {
-  border-color: var(--accent) !important;
-}
+.react-resizable-handle { opacity: 0; transition: opacity 0.2s; }
+.react-grid-item:hover .react-resizable-handle { opacity: 1; }
+.react-resizable-handle::after { border-color: var(--primary) !important; }
