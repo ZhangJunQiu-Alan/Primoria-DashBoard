@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { Play, Pause, RotateCcw } from 'lucide-react'
+import { useWidgetDataStore } from '@/store/widgetDataStore'
 
 const MODES = {
   work: { label: 'Focus', duration: 25 * 60 },
@@ -10,10 +11,10 @@ const MODES = {
 type Mode = keyof typeof MODES
 
 export function PomodoroWidget() {
+  const { pomodoro, incrementPomodoro } = useWidgetDataStore()
   const [mode, setMode] = useState<Mode>('work')
   const [timeLeft, setTimeLeft] = useState(MODES.work.duration)
   const [running, setRunning] = useState(false)
-  const [sessions, setSessions] = useState(0)
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   useEffect(() => {
@@ -22,7 +23,7 @@ export function PomodoroWidget() {
         setTimeLeft((t) => {
           if (t <= 1) {
             setRunning(false)
-            if (mode === 'work') setSessions((s) => s + 1)
+            if (mode === 'work') incrementPomodoro()
             return 0
           }
           return t - 1
@@ -32,7 +33,7 @@ export function PomodoroWidget() {
       if (intervalRef.current) clearInterval(intervalRef.current)
     }
     return () => { if (intervalRef.current) clearInterval(intervalRef.current) }
-  }, [running, mode])
+  }, [running, mode, incrementPomodoro])
 
   function switchMode(m: Mode) {
     setMode(m)
@@ -94,7 +95,10 @@ export function PomodoroWidget() {
         >
           {running ? <Pause size={16} /> : <Play size={16} />}
         </button>
-        <span className="text-white/30 text-xs w-8 text-center">{sessions}×</span>
+        <div className="text-center w-10">
+          <p className="text-white/60 text-sm tabular-nums">{pomodoro.todaySessions}</p>
+          <p className="text-white/20 text-[9px]">today</p>
+        </div>
       </div>
     </div>
   )

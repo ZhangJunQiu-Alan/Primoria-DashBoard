@@ -1,19 +1,9 @@
 import { useState } from 'react'
 import { Plus, X, Link2 } from 'lucide-react'
-
-interface Link {
-  id: string
-  title: string
-  url: string
-}
-
-const DEFAULT_LINKS: Link[] = [
-  { id: '1', title: 'GitHub', url: 'https://github.com' },
-  { id: '2', title: 'Google', url: 'https://google.com' },
-]
+import { useWidgetDataStore } from '@/store/widgetDataStore'
 
 export function QuickLinksWidget() {
-  const [links, setLinks] = useState<Link[]>(DEFAULT_LINKS)
+  const { quickLinks, addQuickLink, removeQuickLink } = useWidgetDataStore()
   const [adding, setAdding] = useState(false)
   const [form, setForm] = useState({ title: '', url: '' })
 
@@ -28,20 +18,20 @@ export function QuickLinksWidget() {
 
   function handleAdd() {
     if (!form.url) return
-    const title = form.title || new URL(form.url).hostname
-    setLinks((prev) => [...prev, { id: Date.now().toString(), title, url: form.url }])
-    setForm({ title: '', url: '' })
-    setAdding(false)
-  }
-
-  function handleRemove(id: string) {
-    setLinks((prev) => prev.filter((l) => l.id !== id))
+    try {
+      const title = form.title || new URL(form.url).hostname
+      addQuickLink({ title, url: form.url })
+      setForm({ title: '', url: '' })
+      setAdding(false)
+    } catch {
+      // invalid URL
+    }
   }
 
   return (
     <div className="flex flex-col h-full gap-2">
       <div className="flex flex-wrap gap-2 flex-1 content-start">
-        {links.map((link) => {
+        {quickLinks.map((link) => {
           const favicon = getFavicon(link.url)
           return (
             <a
@@ -53,7 +43,7 @@ export function QuickLinksWidget() {
               title={link.title}
             >
               <button
-                onClick={(e) => { e.preventDefault(); handleRemove(link.id) }}
+                onClick={(e) => { e.preventDefault(); removeQuickLink(link.id) }}
                 className="absolute -top-1 -right-1 hidden group-hover:flex items-center justify-center w-4 h-4 bg-white/10 rounded-full hover:bg-red-500/70 transition-colors"
               >
                 <X size={8} />
@@ -93,12 +83,14 @@ export function QuickLinksWidget() {
             placeholder="URL (required)"
             value={form.url}
             onChange={(e) => setForm((f) => ({ ...f, url: e.target.value }))}
+            onKeyDown={(e) => e.key === 'Enter' && handleAdd()}
             className="bg-white/5 rounded-lg px-2 py-1 text-xs text-white outline-none border border-white/10 focus:border-white/30"
           />
           <input
             placeholder="Title (optional)"
             value={form.title}
             onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
+            onKeyDown={(e) => e.key === 'Enter' && handleAdd()}
             className="bg-white/5 rounded-lg px-2 py-1 text-xs text-white outline-none border border-white/10 focus:border-white/30"
           />
           <div className="flex gap-2">
