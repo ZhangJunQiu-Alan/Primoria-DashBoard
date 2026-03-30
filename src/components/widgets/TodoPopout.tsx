@@ -26,9 +26,29 @@ const EMPTY: TodoItem[] = []
 const PANEL_H = 400
 
 const SortableRow = memo(function SortableRow({
-  todo, onToggle, onRemove,
-}: { todo: TodoItem; onToggle: (id: string) => void; onRemove: (id: string) => void }) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: todo.id })
+  todo, onToggle, onRemove, isEditing, onStartEdit, onCommitEdit, onCancelEdit,
+}: {
+  todo: TodoItem
+  onToggle: (id: string) => void
+  onRemove: (id: string) => void
+  isEditing: boolean
+  onStartEdit: (id: string) => void
+  onCommitEdit: (id: string, text: string) => void
+  onCancelEdit: () => void
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: todo.id,
+    disabled: isEditing,
+  })
+  const [localText, setLocalText] = useState(todo.text)
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    if (isEditing) {
+      setTimeout(() => { inputRef.current?.focus(); inputRef.current?.select() }, 0)
+    }
+  }, [isEditing])
+
   return (
     <div
       ref={setNodeRef}
@@ -37,12 +57,14 @@ const SortableRow = memo(function SortableRow({
       onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--bg-muted)')}
       onMouseLeave={(e) => (e.currentTarget.style.background = '')}
     >
-      <button {...attributes} {...listeners}
-        className="opacity-0 group-hover:opacity-40 transition-all flex-shrink-0 cursor-grab active:cursor-grabbing"
-        style={{ color: 'var(--text-muted)', touchAction: 'none' }} tabIndex={-1}
-      >
-        <GripVertical size={12} />
-      </button>
+      {!isEditing && (
+        <button {...attributes} {...listeners}
+          className="opacity-0 group-hover:opacity-40 transition-all flex-shrink-0 cursor-grab active:cursor-grabbing"
+          style={{ color: 'var(--text-muted)', touchAction: 'none' }} tabIndex={-1}
+        >
+          <GripVertical size={12} />
+        </button>
+      )}
       <button
         onClick={() => onToggle(todo.id)}
         className="w-4 h-4 rounded-full border flex-shrink-0 flex items-center justify-center transition-colors"
@@ -50,17 +72,39 @@ const SortableRow = memo(function SortableRow({
       >
         {todo.done && <span className="text-white" style={{ fontSize: '8px' }}>✓</span>}
       </button>
-      <span className="flex-1 text-sm" style={{ textDecoration: todo.done ? 'line-through' : 'none', color: todo.done ? 'var(--text-muted)' : 'var(--text)' }}>
-        {todo.text}
-      </span>
-      <button onClick={() => onRemove(todo.id)}
-        className="opacity-0 group-hover:opacity-100 transition-all"
-        style={{ color: 'var(--text-muted)' }}
-        onMouseEnter={(e) => (e.currentTarget.style.color = '#C4807A')}
-        onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--text-muted)')}
-      >
-        <Trash2 size={12} />
-      </button>
+
+      {isEditing ? (
+        <input
+          ref={inputRef}
+          value={localText}
+          onChange={(e) => setLocalText(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') onCommitEdit(todo.id, localText)
+            if (e.key === 'Escape') onCancelEdit()
+          }}
+          onBlur={() => onCommitEdit(todo.id, localText)}
+          onClick={(e) => e.stopPropagation()}
+          style={{ flex: 1, outline: 'none', background: 'transparent', fontSize: '15px', color: 'var(--text)', borderBottom: '1px solid var(--primary-light)', padding: '0 2px' }}
+        />
+      ) : (
+        <span
+          onClick={() => onStartEdit(todo.id)}
+          style={{ flex: 1, fontSize: '15px', textDecoration: todo.done ? 'line-through' : 'none', color: todo.done ? 'var(--text-muted)' : 'var(--text)', cursor: 'text' }}
+        >
+          {todo.text}
+        </span>
+      )}
+
+      {!isEditing && (
+        <button onClick={() => onRemove(todo.id)}
+          className="opacity-0 group-hover:opacity-100 transition-all"
+          style={{ color: 'var(--text-muted)' }}
+          onMouseEnter={(e) => (e.currentTarget.style.color = '#C4807A')}
+          onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--text-muted)')}
+        >
+          <Trash2 size={12} />
+        </button>
+      )}
     </div>
   )
 })
@@ -75,6 +119,7 @@ export function TodoPopout({ widgetId, onClose }: TodoPopoutProps) {
   const addTodo = useWidgetDataStore((s) => s.addTodo)
   const toggleTodo = useWidgetDataStore((s) => s.toggleTodo)
   const removeTodo = useWidgetDataStore((s) => s.removeTodo)
+  const renameTodo = useWidgetDataStore((s) => s.renameTodo)
   const clearDoneTodos = useWidgetDataStore((s) => s.clearDoneTodos)
   const markAllDone = useWidgetDataStore((s) => s.markAllDone)
   const reorderTodos = useWidgetDataStore((s) => s.reorderTodos)
@@ -87,6 +132,7 @@ export function TodoPopout({ widgetId, onClose }: TodoPopoutProps) {
   const [pinned, setPinned] = useState(false)
   const [adding, setAdding] = useState(false)
   const [input, setInput] = useState('')
+  const [editingId, setEditingId] = useState<string | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const dragOrigin = useRef<{ mx: number; my: number; px: number; py: number } | null>(null)
 
@@ -94,6 +140,12 @@ export function TodoPopout({ widgetId, onClose }: TodoPopoutProps) {
 
   const handleToggle = useCallback((id: string) => toggleTodo(widgetId, id), [widgetId, toggleTodo])
   const handleRemove = useCallback((id: string) => removeTodo(widgetId, id), [widgetId, removeTodo])
+  const handleStartEdit = useCallback((id: string) => { setAdding(false); setEditingId(id) }, [])
+  const handleCommitEdit = useCallback((id: string, text: string) => {
+    if (text.trim()) renameTodo(widgetId, id, text.trim())
+    setEditingId(null)
+  }, [widgetId, renameTodo])
+  const handleCancelEdit = useCallback(() => setEditingId(null), [])
 
   function onHeaderMouseDown(e: React.MouseEvent) {
     if ((e.target as HTMLElement).closest('button')) return
@@ -121,6 +173,7 @@ export function TodoPopout({ widgetId, onClose }: TodoPopoutProps) {
   }, [])
 
   function startAdding() {
+    setEditingId(null)
     setAdding(true)
     setTimeout(() => inputRef.current?.focus(), 0)
   }
@@ -205,22 +258,31 @@ export function TodoPopout({ widgetId, onClose }: TodoPopoutProps) {
               }}
               onBlur={() => { if (!input.trim()) setAdding(false) }}
               placeholder="输入任务，Enter 继续，Esc 结束"
-              style={{ width: '100%', borderRadius: '8px', padding: '6px 10px', fontSize: '13px', outline: 'none', background: 'var(--bg-muted)', border: '1.5px solid var(--primary-light)', color: 'var(--text)' }}
+              style={{ width: '100%', borderRadius: '8px', padding: '6px 10px', fontSize: '15px', outline: 'none', background: 'var(--bg-muted)', border: '1.5px solid var(--primary-light)', color: 'var(--text)' }}
             />
           </div>
         )}
         <div style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden' }}
-          onClick={(e) => { if (e.target === e.currentTarget) startAdding() }}
+          onClick={(e) => { if (e.target === e.currentTarget && !editingId) startAdding() }}
         >
           {todos.length === 0 && !adding && (
-            <p onClick={startAdding} style={{ fontSize: '13px', color: 'var(--text-muted)', textAlign: 'center', marginTop: '24px', cursor: 'text', userSelect: 'none' }}>
+            <p onClick={startAdding} style={{ fontSize: '15px', color: 'var(--text-muted)', textAlign: 'center', marginTop: '24px', cursor: 'text', userSelect: 'none' }}>
               点击此处添加任务
             </p>
           )}
           <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
             <SortableContext items={todos.map((t) => t.id)} strategy={verticalListSortingStrategy}>
               {todos.map((todo) => (
-                <SortableRow key={todo.id} todo={todo} onToggle={handleToggle} onRemove={handleRemove} />
+                <SortableRow
+                  key={`${todo.id}-${editingId === todo.id ? 'editing' : 'view'}`}
+                  todo={todo}
+                  onToggle={handleToggle}
+                  onRemove={handleRemove}
+                  isEditing={editingId === todo.id}
+                  onStartEdit={handleStartEdit}
+                  onCommitEdit={handleCommitEdit}
+                  onCancelEdit={handleCancelEdit}
+                />
               ))}
             </SortableContext>
           </DndContext>

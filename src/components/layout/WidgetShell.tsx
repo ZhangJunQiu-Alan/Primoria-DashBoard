@@ -5,18 +5,26 @@ import type { WidgetType } from '@/types/widget'
 import { useDashboardStore } from '@/store/dashboardStore'
 import { ClockWidget } from '@/components/widgets/ClockWidget'
 import { QuickLinksWidget } from '@/components/widgets/QuickLinksWidget'
+import { MottoWidget } from '@/components/widgets/MottoWidget'
 import { NotesWidget } from '@/components/widgets/NotesWidget'
 import { LinedNotesWidget } from '@/components/widgets/LinedNotesWidget'
 import { TodoWidget } from '@/components/widgets/TodoWidget'
 import { PomodoroWidget } from '@/components/widgets/PomodoroWidget'
+import { GoogleCalendarWidget } from '@/components/widgets/GoogleCalendarWidget'
+import { HabitWidget } from '@/components/widgets/HabitWidget'
+import { MusicPlayerWidget } from '@/components/widgets/MusicPlayerWidget'
 
 const DEFAULT_TITLES: Record<WidgetType, string> = {
   clock: '时钟',
   'quick-links': '快速链接',
+  motto: '格言',
   notes: '便签',
   'lined-notes': '格纸笔记',
   todo: '待办事项',
   pomodoro: '番茄钟',
+  'google-calendar': 'Google 日历',
+  'music-player': '网易云播放器',
+  'habits': '习惯打卡',
 }
 
 interface WidgetShellProps {
@@ -50,20 +58,31 @@ export function WidgetShell({ type, widgetId, onRemove, showHeader }: WidgetShel
     switch (type) {
       case 'clock': return <ClockWidget />
       case 'quick-links': return <QuickLinksWidget />
+      case 'motto': return <MottoWidget />
       case 'notes': return <NotesWidget />
       case 'lined-notes': return <LinedNotesWidget widgetId={widgetId} />
       case 'todo': return <TodoWidget widgetId={widgetId} />
       case 'pomodoro': return <PomodoroWidget />
+      case 'google-calendar': return <GoogleCalendarWidget widgetId={widgetId} />
+      case 'music-player': return <MusicPlayerWidget widgetId={widgetId} />
+      case 'habits': return <HabitWidget widgetId={widgetId} />
       default: return null
     }
   }
 
   return (
-    <div className="widget-card h-full flex flex-col">
+    <div className={`widget-card h-full flex flex-col${type === 'clock' ? ' widget-transparent' : ''}`}>
       {showHeader && (
         <div
           className="drag-handle flex items-center px-4 py-2.5 cursor-grab active:cursor-grabbing select-none group/header"
-          style={{ borderBottom: '1px solid var(--border)' }}
+          style={{
+            borderBottom: '1px solid var(--border)',
+            // Clock card is transparent, so give the header its own background
+            ...(type === 'clock' ? {
+              background: 'var(--bg-card)',
+              borderRadius: 'var(--r-lg) var(--r-lg) 0 0',
+            } : {}),
+          }}
         >
           {editing ? (
             <input

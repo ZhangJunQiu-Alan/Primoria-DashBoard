@@ -24,16 +24,16 @@ export function ClockWidget() {
         className="tabular-nums"
         style={{
           fontFamily: "'Cormorant Garamond', serif",
-          fontSize: '48px',
+          fontSize: '58px',
           fontWeight: 400,
           letterSpacing: '0.05em',
           color: 'var(--text)',
         }}
       >
         {hours}:{minutes}
-        <span style={{ fontSize: '30px', color: 'var(--text-muted)' }}>:{seconds}</span>
+        <span style={{ fontSize: '36px', color: 'var(--text-muted)' }}>:{seconds}</span>
       </div>
-      <div style={{ fontSize: '12px', color: 'var(--text-muted)', letterSpacing: '0.04em' }}>
+      <div style={{ fontSize: '14px', color: 'var(--text-muted)', letterSpacing: '0.04em' }}>
         {dateStr}
       </div>
     </div>

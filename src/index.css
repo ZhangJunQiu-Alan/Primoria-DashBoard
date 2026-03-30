@@ -46,6 +46,20 @@ html, body {
   max-width: 100vw;
 }
 
+html,
+body,
+#root,
+* {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+*::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+  display: none;
+}
+
 /* ── Watercolor background ───────────────────────────────────── */
 body::before {
   content: '';
@@ -73,6 +87,16 @@ body::before {
 }
 .widget-content {
   position: relative; z-index: 1;
+}
+
+/* ── Transparent widget (e.g. clock) ─────────────────────────── */
+.widget-transparent {
+  background: transparent !important;
+  border-color: transparent !important;
+  box-shadow: none !important;
+}
+.widget-transparent::before {
+  display: none !important;
 }
 
 /* ── react-grid-layout: placeholder ─────────────────────────── */
@@ -123,4 +147,52 @@ body::before {
     url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath d='M2 10 L10 10 L10 2' stroke='white' stroke-width='2.5' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E")
     center / 11px 11px no-repeat;
   box-shadow: 0 2px 6px rgba(92,125,96,0.4);
+}
+
+/* ── Music player ───────────────────────────────────────────── */
+@keyframes vinyl-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.music-vinyl {
+  position: relative;
+  border-radius: 999px;
+  background:
+    radial-gradient(circle at center, rgba(0,0,0,0) 0 8%, rgba(0,0,0,0.9) 8.5%, rgba(0,0,0,0.96) 14%, #111 48%, #070707 70%, #000 100%);
+  box-shadow:
+    inset 0 0 0 1px rgba(255,255,255,0.06),
+    inset 0 0 30px rgba(255,255,255,0.04),
+    0 18px 40px rgba(26, 21, 15, 0.24);
+}
+
+.music-vinyl::before {
+  content: '';
+  position: absolute;
+  inset: 6%;
+  border-radius: inherit;
+  background:
+    repeating-radial-gradient(circle at center,
+      rgba(255,255,255,0.07) 0 1px,
+      rgba(255,255,255,0) 1px 6px);
+  opacity: 0.28;
+}
+
+.music-vinyl::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: radial-gradient(circle at 32% 24%, rgba(255,255,255,0.18), transparent 28%);
+  mix-blend-mode: screen;
+}
+
+.music-vinyl--spinning {
+  animation: vinyl-spin 24s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .music-vinyl--spinning {
+    animation: none;
+  }
 }

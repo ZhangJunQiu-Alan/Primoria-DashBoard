@@ -1,10 +1,16 @@
+export type DashboardBreakpoint = 'lg' | 'md' | 'sm'
+
 export type WidgetType =
   | 'clock'
   | 'quick-links'
+  | 'motto'
   | 'notes'
   | 'lined-notes'
   | 'todo'
   | 'pomodoro'
+  | 'google-calendar'
+  | 'music-player'
+  | 'habits'
 
 export interface WidgetMeta {
   type: WidgetType
@@ -31,3 +37,5 @@ export interface LayoutItem {
   minW?: number
   minH?: number
 }
+
+export type ResponsiveLayouts = Partial<Record<DashboardBreakpoint, LayoutItem[]>>

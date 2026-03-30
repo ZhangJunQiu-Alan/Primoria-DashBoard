@@ -1,32 +1,114 @@
-import { GridLayout, useContainerWidth, useResponsiveLayout, noCompactor } from 'react-grid-layout'
+import { useEffect, useMemo } from 'react'
+import {
+  findOrGenerateResponsiveLayout,
+  GridLayout,
+  noCompactor,
+  useContainerWidth,
+  useResponsiveLayout,
+} from 'react-grid-layout'
 import { useDashboardStore } from '@/store/dashboardStore'
 import { WidgetShell } from './WidgetShell'
-import type { LayoutItem } from '@/types/widget'
+import type { DashboardBreakpoint, LayoutItem, ResponsiveLayouts } from '@/types/widget'
 
-const BREAKPOINTS = { lg: 1200, md: 996, sm: 768 }
-const COLS = { lg: 12, md: 10, sm: 6 }
+const BREAKPOINTS: Record<DashboardBreakpoint, number> = { lg: 1200, md: 996, sm: 768 }
+const COLS: Record<DashboardBreakpoint, number> = { lg: 12, md: 10, sm: 6 }
+const BREAKPOINT_ORDER: DashboardBreakpoint[] = ['sm', 'md', 'lg']
 
 interface DashboardProps {
   showWidgetHeaders: boolean
 }
 
+function preserveEdgeAnchors(
+  generatedLayout: LayoutItem[],
+  sourceLayout: LayoutItem[],
+  sourceCols: number,
+  targetCols: number
+) {
+  const sourceMap = new Map(sourceLayout.map((item) => [item.i, item]))
+
+  return generatedLayout.map((item) => {
+    const source = sourceMap.get(item.i)
+    if (!source) return item
+
+    if (source.x <= 0) {
+      return { ...item, x: 0 }
+    }
+
+    if (source.x + source.w >= sourceCols) {
+      return { ...item, x: Math.max(0, targetCols - item.w) }
+    }
+
+    return item
+  })
+}
+
+function buildResponsiveLayouts(layouts: ResponsiveLayouts) {
+  const completeLayouts: ResponsiveLayouts = { ...layouts }
+  const availableBreakpoints = BREAKPOINT_ORDER.filter((breakpoint) => layouts[breakpoint]?.length)
+
+  if (availableBreakpoints.length === 0) return completeLayouts
+
+  for (const breakpoint of BREAKPOINT_ORDER) {
+    if (completeLayouts[breakpoint]?.length) continue
+
+    const targetIndex = BREAKPOINT_ORDER.indexOf(breakpoint)
+    const sourceBreakpoint = [...availableBreakpoints].sort((a, b) => {
+      const aDistance = Math.abs(BREAKPOINT_ORDER.indexOf(a) - targetIndex)
+      const bDistance = Math.abs(BREAKPOINT_ORDER.indexOf(b) - targetIndex)
+      return aDistance - bDistance
+    })[0]
+
+    if (!sourceBreakpoint) continue
+
+    const sourceLayout = layouts[sourceBreakpoint]
+    if (!sourceLayout) continue
+
+    const generated = findOrGenerateResponsiveLayout(
+      layouts,
+      BREAKPOINTS,
+      breakpoint,
+      sourceBreakpoint,
+      COLS[breakpoint],
+      noCompactor
+    ) as LayoutItem[]
+
+    completeLayouts[breakpoint] = preserveEdgeAnchors(
+      generated,
+      sourceLayout,
+      COLS[sourceBreakpoint],
+      COLS[breakpoint]
+    )
+  }
+
+  return completeLayouts
+}
+
 export function Dashboard({ showWidgetHeaders }: DashboardProps) {
   const widgets = useDashboardStore((s) => s.widgets)
-  const layout = useDashboardStore((s) => s.layout)
+  const layouts = useDashboardStore((s) => s.layouts)
   const removeWidget = useDashboardStore((s) => s.removeWidget)
   const updateLayout = useDashboardStore((s) => s.updateLayout)
 
   const { width, containerRef } = useContainerWidth({ initialWidth: 1200 })
+  const responsiveLayouts = useMemo(() => buildResponsiveLayouts(layouts), [layouts])
 
-  const layouts = { lg: layout, md: layout, sm: layout }
-
-  const { layout: activeLayout, cols } = useResponsiveLayout({
+  const {
+    breakpoint,
+    cols,
+    layout: activeLayout,
+  } = useResponsiveLayout({
     width,
     breakpoints: BREAKPOINTS,
     cols: COLS,
-    layouts,
-    onLayoutChange: (currentLayout) => updateLayout([...currentLayout] as LayoutItem[]),
+    layouts: responsiveLayouts,
+    compactor: noCompactor,
   })
+
+  useEffect(() => {
+    if (!layouts[breakpoint] && activeLayout.length > 0) {
+      updateLayout(breakpoint, activeLayout as LayoutItem[])
+    }
+  }, [activeLayout, breakpoint, layouts, updateLayout])
 
   return (
     <div ref={containerRef as React.RefObject<HTMLDivElement>}>
@@ -34,7 +116,9 @@ export function Dashboard({ showWidgetHeaders }: DashboardProps) {
         width={width}
         layout={activeLayout}
         dragConfig={{ handle: '.drag-handle' }}
-        onLayoutChange={(currentLayout) => updateLayout([...currentLayout] as LayoutItem[])}
+        onLayoutChange={(currentLayout) =>
+          updateLayout(breakpoint, [...currentLayout] as LayoutItem[])
+        }
         compactor={noCompactor}
         gridConfig={{
           cols,

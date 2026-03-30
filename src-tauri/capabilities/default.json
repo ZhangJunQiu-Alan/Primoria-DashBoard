@@ -4,7 +4,6 @@
   "description": "Default capability",
   "windows": ["main", "todo-popout-*"],
   "permissions": [
-    "core:default",
-    "opener:default"
+    "core:default"
   ]
 }

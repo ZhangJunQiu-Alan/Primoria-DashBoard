@@ -1,9 +1,9 @@
-import { useRef } from 'react'
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { Plus, Eye, EyeOff, Sparkles, ImageIcon } from 'lucide-react'
 import { Dashboard } from '@/components/layout/Dashboard'
 import { AddWidgetModal } from '@/components/layout/AddWidgetModal'
 import { AIChatPanel } from '@/components/layout/AIChatPanel'
+import { TodoDndProvider } from '@/components/layout/TodoDndProvider'
 import { useBackgroundStore } from '@/store/backgroundStore'
 import { Toaster } from 'sonner'
 
@@ -28,22 +28,23 @@ export default function App() {
   }
 
   return (
-    <div
-      className="min-h-screen relative"
-      style={{
-        background: backgroundImage
-          ? `url(${backgroundImage}) center/cover no-repeat fixed`
-          : 'var(--bg)',
-      }}
-    >
-      {backgroundImage && (
-        <div className="fixed inset-0 z-0" style={{ background: 'rgba(254,250,245,0.55)' }} />
-      )}
+    <TodoDndProvider>
+      <div
+        className="min-h-screen relative"
+        style={{
+          background: backgroundImage
+            ? `url(${backgroundImage}) center/cover no-repeat fixed`
+            : 'var(--bg)',
+        }}
+      >
+        {backgroundImage && (
+          <div className="fixed inset-0 z-0" style={{ background: 'rgba(254,250,245,0.55)' }} />
+        )}
 
-      <Toaster theme="light" />
+        <Toaster theme="light" />
 
-      {/* 右上角控制区 — 始终在右上角 */}
-      <div className="fixed top-0 right-0 z-50 flex items-center gap-2 px-4 py-2.5">
+        {/* 右上角控制区 — 始终在右上角 */}
+        <div className="fixed top-0 right-0 z-50 flex items-center gap-2 px-4 py-2.5">
 
         {/* 顶部栏按钮组 — 跟随 uiVisible 显示/隐藏 */}
         <div
@@ -169,38 +170,39 @@ export default function App() {
           {uiVisible ? <Eye size={13} /> : <EyeOff size={13} />}
           {uiVisible ? '隐藏' : '显示'}
         </button>
-      </div>
+        </div>
 
-      {/* 顶部栏背景条 */}
-      {uiVisible && (
-        <div
-          className="fixed top-0 left-0 right-0 z-40"
-          style={{
-            height: '52px',
-            background: 'rgba(254,250,245,0.82)',
-            backdropFilter: 'blur(12px)',
-            borderBottom: '1px solid var(--border)',
-          }}
+        {/* 顶部栏背景条 */}
+        {uiVisible && (
+          <div
+            className="fixed top-0 left-0 right-0 z-40"
+            style={{
+              height: '52px',
+              background: 'rgba(254,250,245,0.82)',
+              backdropFilter: 'blur(12px)',
+              borderBottom: '1px solid var(--border)',
+            }}
+          />
+        )}
+
+        <main
+          className="relative z-10"
+          style={{ paddingTop: uiVisible ? '52px' : '0', transition: 'padding-top 0.3s ease' }}
+        >
+          <Dashboard showWidgetHeaders={uiVisible} />
+        </main>
+
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*"
+          className="hidden"
+          onChange={handleImageUpload}
         />
-      )}
 
-      <main
-        className="relative z-10"
-        style={{ paddingTop: uiVisible ? '52px' : '0', transition: 'padding-top 0.3s ease' }}
-      >
-        <Dashboard showWidgetHeaders={uiVisible} />
-      </main>
-
-      <input
-        ref={fileInputRef}
-        type="file"
-        accept="image/*"
-        className="hidden"
-        onChange={handleImageUpload}
-      />
-
-      <AddWidgetModal open={modalOpen} onClose={() => setModalOpen(false)} />
-      <AIChatPanel open={aiOpen} onClose={() => setAiOpen(false)} />
-    </div>
+        <AddWidgetModal open={modalOpen} onClose={() => setModalOpen(false)} />
+        <AIChatPanel open={aiOpen} onClose={() => setAiOpen(false)} />
+      </div>
+    </TodoDndProvider>
   )
 }

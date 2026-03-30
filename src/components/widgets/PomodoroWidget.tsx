@@ -23,7 +23,9 @@ export function PomodoroWidget() {
 
   // Stable reference so the interval effect doesn't restart on every store update
   const incrementRef = useRef(incrementPomodoro)
-  incrementRef.current = incrementPomodoro
+  useEffect(() => {
+    incrementRef.current = incrementPomodoro
+  }, [incrementPomodoro])
 
   useEffect(() => {
     if (running) {

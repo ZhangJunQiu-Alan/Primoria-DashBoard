@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react'
-import { X, Search, Clock, Link2, FileText, CheckSquare, Timer } from 'lucide-react'
+import { X, Search, Clock, Link2, FileText, CheckSquare, Timer, CalendarDays, ListChecks, Disc3, Quote } from 'lucide-react'
 import { useDashboardStore } from '@/store/dashboardStore'
 import type { WidgetType } from '@/types/widget'
 
@@ -14,10 +14,14 @@ interface WidgetDef {
 const WIDGET_DEFS: WidgetDef[] = [
   { type: 'clock', name: '时钟', description: '显示当前时间与日期', icon: Clock, category: '信息' },
   { type: 'quick-links', name: '快速链接', description: '常用书签，一键直达', icon: Link2, category: '效率' },
+  { type: 'motto', name: '格言', description: '展示激励人奋斗的精选格言，每 10 分钟自动切换', icon: Quote, category: '灵感' },
   { type: 'notes', name: '便签', description: '随手记录想法', icon: FileText, category: '效率' },
   { type: 'lined-notes', name: '格纸笔记', description: '带横线格纸风格的笔记', icon: FileText, category: '效率' },
   { type: 'todo', name: '待办事项', description: '管理每日任务', icon: CheckSquare, category: '效率' },
   { type: 'pomodoro', name: '番茄钟', description: '专注计时，劳逸结合', icon: Timer, category: '效率' },
+  { type: 'google-calendar', name: 'Google 日历', description: '嵌入 Google Calendar 日历', icon: CalendarDays, category: '效率' },
+  { type: 'music-player', name: '网易云播放器', description: '黑胶风格的网易云音乐播放卡片', icon: Disc3, category: '娱乐' },
+  { type: 'habits', name: '习惯打卡', description: '追踪每日习惯，查看近 7 天', icon: ListChecks, category: '效率' },
 ]
 
 interface Props {
@@ -29,12 +33,12 @@ export function AddWidgetModal({ open, onClose }: Props) {
   const [search, setSearch] = useState('')
   const addWidget = useDashboardStore((s) => s.addWidget)
 
-  if (!open) return null
-
   const { filtered, categories } = useMemo(() => {
     const f = WIDGET_DEFS.filter((w) => w.name.includes(search) || w.description.includes(search))
     return { filtered: f, categories: [...new Set(f.map((w) => w.category))] }
   }, [search])
+
+  if (!open) return null
 
   function handleAdd(type: WidgetType) {
     addWidget(type)
