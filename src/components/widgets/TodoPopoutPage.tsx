@@ -15,6 +15,7 @@ import {
   useSortable,
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
+import { useWidgetDataStoreSync } from '@/hooks/useWidgetDataStoreSync'
 import { useWidgetDataStore } from '@/store/widgetDataStore'
 import type { TodoItem } from '@/store/widgetDataStore'
 
@@ -120,6 +121,8 @@ function SortableRow({
 export function TodoPopoutPage() {
   const params = new URLSearchParams(window.location.search)
   const widgetId = params.get('widgetId') ?? 'default'
+
+  useWidgetDataStoreSync()
 
   const todos = useWidgetDataStore((s) => s.todosByWidget[widgetId] ?? EMPTY)
   const addTodo = useWidgetDataStore((s) => s.addTodo)

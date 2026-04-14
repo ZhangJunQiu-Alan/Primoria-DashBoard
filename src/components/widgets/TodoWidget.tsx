@@ -29,7 +29,7 @@ const SortableRow = memo(function SortableRow({
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: todo.id,
     disabled: isEditing,
-    data: { widgetId, type: 'todo-item' },
+    data: { widgetId, todoId: todo.id, type: 'todo-item' },
   })
   const [localText, setLocalText] = useState(todo.text)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -141,8 +141,8 @@ export function TodoWidget({ widgetId = 'default' }: TodoWidgetProps) {
   const inputRef = useRef<HTMLInputElement>(null)
 
   // Cross-widget drag state (to show visual feedback)
-  const { activeId, activeWidgetId } = useTodoDndState()
-  const isDraggingFromOther = activeId !== null && activeWidgetId !== widgetId
+  const { activeId, activeWidgetId, activeType } = useTodoDndState()
+  const isDraggingFromOther = activeType === 'todo-item' && activeId !== null && activeWidgetId !== widgetId
 
   // Droppable for when this widget is the drop target (especially when empty)
   const { setNodeRef: setDropRef, isOver } = useDroppable({

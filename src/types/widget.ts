@@ -11,6 +11,7 @@ export type WidgetType =
   | 'google-calendar'
   | 'music-player'
   | 'habits'
+  | 'scheduled-todo'
 
 export interface WidgetMeta {
   type: WidgetType

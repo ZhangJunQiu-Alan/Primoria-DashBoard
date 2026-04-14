@@ -1,4 +1,6 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useMemo } from 'react'
+import { useCurrentDayKey } from '@/hooks/useCurrentDayKey'
+import { addDaysToDateKey, parseLocalDateKey } from '@/lib/date'
 import { Plus, X, Check, Pencil } from 'lucide-react'
 import { useWidgetDataStore } from '@/store/widgetDataStore'
 import type { HabitItem } from '@/store/widgetDataStore'
@@ -6,15 +8,14 @@ import type { HabitItem } from '@/store/widgetDataStore'
 const EMPTY: HabitItem[] = []
 
 // Returns last 7 days ending today, as 'YYYY-MM-DD' strings
-function getLast7Days(): { date: string; label: string; isToday: boolean }[] {
+function getLast7Days(todayKey: string): { date: string; label: string; isToday: boolean }[] {
   const days: { date: string; label: string; isToday: boolean }[] = []
   const dayAbbr = ['日', '一', '二', '三', '四', '五', '六']
-  const today = new Date()
+  const today = parseLocalDateKey(todayKey)
   today.setHours(0, 0, 0, 0)
   for (let i = 6; i >= 0; i--) {
-    const d = new Date(today)
-    d.setDate(today.getDate() - i)
-    const dateStr = d.toISOString().slice(0, 10)
+    const dateStr = addDaysToDateKey(today, -i)
+    const d = parseLocalDateKey(dateStr)
     days.push({
       date: dateStr,
       label: dayAbbr[d.getDay()],
@@ -42,8 +43,9 @@ export function HabitWidget({ widgetId }: HabitWidgetProps) {
   const [editName, setEditName] = useState('')
   const inputRef = useRef<HTMLInputElement>(null)
   const editRef = useRef<HTMLInputElement>(null)
+  const todayKey = useCurrentDayKey()
 
-  const days = getLast7Days()
+  const days = useMemo(() => getLast7Days(todayKey), [todayKey])
 
   useEffect(() => {
     if (showModal) setTimeout(() => inputRef.current?.focus(), 0)

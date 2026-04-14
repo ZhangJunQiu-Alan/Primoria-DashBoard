@@ -19,6 +19,7 @@ const VALID_TYPES: WidgetType[] = [
   'google-calendar',
   'music-player',
   'habits',
+  'scheduled-todo',
 ]
 
 const DASHBOARD_BREAKPOINTS: DashboardBreakpoint[] = ['lg', 'md', 'sm']
@@ -49,6 +50,7 @@ const DEFAULT_SIZES: Record<WidgetType, { w: number; h: number; minW: number; mi
   'google-calendar': { w: 4, h: 5, minW: 3, minH: 3 },
   'music-player': { w: 4, h: 4, minW: 2, minH: 2 },
   habits: { w: 5, h: 4, minW: 3, minH: 3 },
+  'scheduled-todo': { w: 4, h: 5, minW: 3, minH: 4 },
 }
 
 const DEFAULT_WIDGETS: WidgetInstance[] = [

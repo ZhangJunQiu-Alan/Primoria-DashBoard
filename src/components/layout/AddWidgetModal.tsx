@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react'
-import { X, Search, Clock, Link2, FileText, CheckSquare, Timer, CalendarDays, ListChecks, Disc3, Quote } from 'lucide-react'
+import { X, Search, Clock, Link2, FileText, CheckSquare, Timer, CalendarDays, ListChecks, Disc3, Quote, CalendarClock } from 'lucide-react'
 import { useDashboardStore } from '@/store/dashboardStore'
 import type { WidgetType } from '@/types/widget'
 
@@ -22,6 +22,7 @@ const WIDGET_DEFS: WidgetDef[] = [
   { type: 'google-calendar', name: 'Google 日历', description: '嵌入 Google Calendar 日历', icon: CalendarDays, category: '效率' },
   { type: 'music-player', name: '网易云播放器', description: '黑胶风格的网易云音乐播放卡片', icon: Disc3, category: '娱乐' },
   { type: 'habits', name: '习惯打卡', description: '追踪每日习惯，查看近 7 天', icon: ListChecks, category: '效率' },
+  { type: 'scheduled-todo', name: '日程任务', description: '横向日期时间轴，可拖拽任务吸附到不同日期', icon: CalendarClock, category: '效率' },
 ]
 
 interface Props {
@@ -78,10 +79,8 @@ export function AddWidgetModal({ open, onClose }: Props) {
           </h2>
           <button
             onClick={onClose}
-            className="p-1.5 rounded-lg transition-all"
+            className="btn-icon-hover p-1.5 rounded-lg"
             style={{ color: 'var(--text-muted)' }}
-            onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg-muted)')}
-            onMouseLeave={e => (e.currentTarget.style.background = '')}
           >
             <X size={16} />
           </button>
@@ -133,20 +132,12 @@ export function AddWidgetModal({ open, onClose }: Props) {
                       <button
                         key={w.type}
                         onClick={() => handleAdd(w.type)}
-                        className="flex items-center gap-3 p-3 rounded-xl text-left transition-all"
+                        className="widget-item flex items-center gap-3 p-3 rounded-xl text-left transition-all"
                         style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}
-                        onMouseEnter={e => {
-                          e.currentTarget.style.background = '#EFF6F0'
-                          e.currentTarget.style.borderColor = 'var(--primary-light)'
-                        }}
-                        onMouseLeave={e => {
-                          e.currentTarget.style.background = 'var(--bg-card)'
-                          e.currentTarget.style.borderColor = 'var(--border)'
-                        }}
                       >
                         <div
                           className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
-                          style={{ background: '#EAF4EB' }}
+                          style={{ background: 'var(--bg-icon)' }}
                         >
                           <Icon size={18} style={{ color: 'var(--primary-dark)' }} />
                         </div>

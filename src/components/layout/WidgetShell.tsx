@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react'
-import { X, SquareArrowOutUpRight } from 'lucide-react'
+import { X, SquareArrowOutUpRight, Pencil } from 'lucide-react'
 import { invoke } from '@tauri-apps/api/core'
 import type { WidgetType } from '@/types/widget'
 import { useDashboardStore } from '@/store/dashboardStore'
@@ -13,6 +13,7 @@ import { PomodoroWidget } from '@/components/widgets/PomodoroWidget'
 import { GoogleCalendarWidget } from '@/components/widgets/GoogleCalendarWidget'
 import { HabitWidget } from '@/components/widgets/HabitWidget'
 import { MusicPlayerWidget } from '@/components/widgets/MusicPlayerWidget'
+import { ScheduledTodoWidget } from '@/components/widgets/ScheduledTodoWidget'
 
 const DEFAULT_TITLES: Record<WidgetType, string> = {
   clock: '时钟',
@@ -25,6 +26,7 @@ const DEFAULT_TITLES: Record<WidgetType, string> = {
   'google-calendar': 'Google 日历',
   'music-player': '网易云播放器',
   'habits': '习惯打卡',
+  'scheduled-todo': '日程任务',
 }
 
 interface WidgetShellProps {
@@ -66,6 +68,7 @@ export function WidgetShell({ type, widgetId, onRemove, showHeader }: WidgetShel
       case 'google-calendar': return <GoogleCalendarWidget widgetId={widgetId} />
       case 'music-player': return <MusicPlayerWidget widgetId={widgetId} />
       case 'habits': return <HabitWidget widgetId={widgetId} />
+      case 'scheduled-todo': return <ScheduledTodoWidget widgetId={widgetId} />
       default: return null
     }
   }
@@ -98,9 +101,9 @@ export function WidgetShell({ type, widgetId, onRemove, showHeader }: WidgetShel
               className="flex-1 outline-none bg-transparent"
               style={{
                 fontFamily: "'Cormorant Garamond', serif",
-                fontSize: '11px',
+                fontSize: '12px',
                 fontWeight: 600,
-                letterSpacing: '0.18em',
+                letterSpacing: '0.14em',
                 textTransform: 'uppercase',
                 color: 'var(--text)',
                 border: 'none',
@@ -114,9 +117,9 @@ export function WidgetShell({ type, widgetId, onRemove, showHeader }: WidgetShel
               title="双击重命名"
               style={{
                 fontFamily: "'Cormorant Garamond', serif",
-                fontSize: '11px',
+                fontSize: '12px',
                 fontWeight: 600,
-                letterSpacing: '0.18em',
+                letterSpacing: '0.14em',
                 textTransform: 'uppercase',
                 color: 'var(--text-muted)',
                 cursor: 'default',
@@ -125,6 +128,16 @@ export function WidgetShell({ type, widgetId, onRemove, showHeader }: WidgetShel
               {displayTitle}
             </span>
           )}
+
+          <button
+            onMouseDown={(e) => e.stopPropagation()}
+            onClick={startEdit}
+            className="btn-icon-hover opacity-0 group-hover/header:opacity-100 p-1 rounded-lg"
+            style={{ color: 'var(--text-muted)' }}
+            title="重命名"
+          >
+            <Pencil size={11} />
+          </button>
 
           {type === 'todo' && (
             <button
@@ -138,16 +151,8 @@ export function WidgetShell({ type, widgetId, onRemove, showHeader }: WidgetShel
                   setPopoutOpen(true)
                 }
               }}
-              className="opacity-0 group-hover/header:opacity-100 p-1 rounded-lg transition-all"
+              className="btn-icon-hover opacity-0 group-hover/header:opacity-100 p-1 rounded-lg"
               style={{ color: popoutOpen ? 'var(--primary-dark)' : 'var(--text-muted)' }}
-              onMouseEnter={e => {
-                e.currentTarget.style.background = 'var(--bg-muted)'
-                e.currentTarget.style.color = 'var(--primary-dark)'
-              }}
-              onMouseLeave={e => {
-                e.currentTarget.style.background = ''
-                e.currentTarget.style.color = popoutOpen ? 'var(--primary-dark)' : 'var(--text-muted)'
-              }}
               title="弹出窗口"
             >
               <SquareArrowOutUpRight size={12} />
@@ -157,16 +162,8 @@ export function WidgetShell({ type, widgetId, onRemove, showHeader }: WidgetShel
           <button
             onMouseDown={(e) => e.stopPropagation()}
             onClick={onRemove}
-            className="opacity-0 group-hover/header:opacity-100 p-1 rounded-lg transition-all"
+            className="btn-icon-hover opacity-0 group-hover/header:opacity-100 p-1 rounded-lg"
             style={{ color: 'var(--text-muted)' }}
-            onMouseEnter={e => {
-              e.currentTarget.style.background = 'var(--bg-muted)'
-              e.currentTarget.style.color = 'var(--text)'
-            }}
-            onMouseLeave={e => {
-              e.currentTarget.style.background = ''
-              e.currentTarget.style.color = 'var(--text-muted)'
-            }}
             title="移除组件"
           >
             <X size={12} />

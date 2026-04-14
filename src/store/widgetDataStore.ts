@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
+import { formatLocalDateKey } from '@/lib/date'
 
 export interface QuickLink {
   id: string
@@ -18,6 +19,14 @@ export interface TodoItem {
 export interface HabitItem {
   id: string
   name: string
+}
+
+export interface ScheduledTask {
+  id: string
+  text: string
+  dueDate: string | null  // 'YYYY-MM-DD'
+  completed: boolean
+  completedAt?: string | null
 }
 
 export interface PomodoroData {
@@ -55,12 +64,28 @@ interface WidgetDataState {
   calendarEmbeds: Record<string, string>
   setCalendarEmbed: (widgetId: string, code: string) => void
 
+  // Scheduled Todo — per widget instance
+  scheduledTasksByWidget: Record<string, ScheduledTask[]>
+  addScheduledTask: (widgetId: string, text: string, dueDate: string | null) => void
+  toggleScheduledTask: (widgetId: string, id: string) => void
+  removeScheduledTask: (widgetId: string, id: string) => void
+  updateScheduledTask: (widgetId: string, id: string, updates: Partial<Pick<ScheduledTask, 'text' | 'dueDate'>>) => void
+  moveTodoToScheduledDate: (
+    fromWidgetId: string,
+    todoId: string,
+    scheduledWidgetId: string,
+    dueDate: string | null
+  ) => void
+  moveScheduledTaskToDate: (widgetId: string, taskId: string, dueDate: string | null) => void
+
   // Pomodoro
   pomodoro: PomodoroData
   incrementPomodoro: () => void
 }
 
-const today = () => new Date().toISOString().slice(0, 10)
+export const WIDGET_DATA_STORAGE_KEY = 'primoria-widget-data'
+const today = () => formatLocalDateKey()
+const makeId = () => `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
 
 const updateList = (
   map: Record<string, TodoItem[]>,
@@ -76,7 +101,7 @@ export const useWidgetDataStore = create<WidgetDataState>()(
         { id: '2', title: 'Google', url: 'https://google.com' },
       ],
       addQuickLink: (link) =>
-        set((s) => ({ quickLinks: [...s.quickLinks, { ...link, id: Date.now().toString() }] })),
+        set((s) => ({ quickLinks: [...s.quickLinks, { ...link, id: makeId() }] })),
       removeQuickLink: (id) =>
         set((s) => ({ quickLinks: s.quickLinks.filter((l) => l.id !== id) })),
 
@@ -85,7 +110,7 @@ export const useWidgetDataStore = create<WidgetDataState>()(
         set((s) =>
           updateList(s.todosByWidget, widgetId, (list) => [
             ...list,
-            { id: Date.now().toString(), text, done: false, createdAt: Date.now() },
+            { id: makeId(), text, done: false, createdAt: Date.now() },
           ])
         ),
       toggleTodo: (widgetId, id) =>
@@ -146,7 +171,7 @@ export const useWidgetDataStore = create<WidgetDataState>()(
         set((s) => ({
           habitsByWidget: {
             ...s.habitsByWidget,
-            [widgetId]: [...(s.habitsByWidget[widgetId] ?? []), { id: Date.now().toString(), name }],
+            [widgetId]: [...(s.habitsByWidget[widgetId] ?? []), { id: makeId(), name }],
           },
         })),
       removeHabit: (widgetId, id) =>
@@ -186,6 +211,87 @@ export const useWidgetDataStore = create<WidgetDataState>()(
       setCalendarEmbed: (widgetId, code) =>
         set((s) => ({ calendarEmbeds: { ...s.calendarEmbeds, [widgetId]: code } })),
 
+      scheduledTasksByWidget: {},
+      addScheduledTask: (widgetId, text, dueDate) =>
+        set((s) => ({
+          scheduledTasksByWidget: {
+            ...s.scheduledTasksByWidget,
+            [widgetId]: [
+              ...(s.scheduledTasksByWidget[widgetId] ?? []),
+              { id: makeId(), text, dueDate, completed: false, completedAt: null },
+            ],
+          },
+        })),
+      toggleScheduledTask: (widgetId, id) =>
+        set((s) => {
+          const todayStr = today()
+          return {
+            scheduledTasksByWidget: {
+              ...s.scheduledTasksByWidget,
+              [widgetId]: (s.scheduledTasksByWidget[widgetId] ?? []).map((t) =>
+                t.id === id
+                  ? {
+                      ...t,
+                      completed: !t.completed,
+                      completedAt: t.completed ? null : todayStr,
+                    }
+                  : t
+              ),
+            },
+          }
+        }),
+      removeScheduledTask: (widgetId, id) =>
+        set((s) => ({
+          scheduledTasksByWidget: {
+            ...s.scheduledTasksByWidget,
+            [widgetId]: (s.scheduledTasksByWidget[widgetId] ?? []).filter((t) => t.id !== id),
+          },
+        })),
+      updateScheduledTask: (widgetId, id, updates) =>
+        set((s) => ({
+          scheduledTasksByWidget: {
+            ...s.scheduledTasksByWidget,
+            [widgetId]: (s.scheduledTasksByWidget[widgetId] ?? []).map((t) =>
+              t.id === id ? { ...t, ...updates } : t
+            ),
+          },
+        })),
+      moveTodoToScheduledDate: (fromWidgetId, todoId, scheduledWidgetId, dueDate) =>
+        set((s) => {
+          const fromList = [...(s.todosByWidget[fromWidgetId] ?? [])]
+          const todo = fromList.find((t) => t.id === todoId)
+          if (!todo) return s
+
+          return {
+            todosByWidget: {
+              ...s.todosByWidget,
+              [fromWidgetId]: fromList.filter((t) => t.id !== todoId),
+            },
+            scheduledTasksByWidget: {
+              ...s.scheduledTasksByWidget,
+              [scheduledWidgetId]: [
+                ...(s.scheduledTasksByWidget[scheduledWidgetId] ?? []),
+                {
+                  id: makeId(),
+                  text: todo.text,
+                  dueDate,
+                  completed: todo.done,
+                  completedAt: todo.done ? today() : null,
+                },
+              ],
+            },
+          }
+        }),
+      moveScheduledTaskToDate: (widgetId, taskId, dueDate) =>
+        set((s) => ({
+          scheduledTasksByWidget: {
+            ...s.scheduledTasksByWidget,
+            [widgetId]: (s.scheduledTasksByWidget[widgetId] ?? []).map((t) =>
+              t.id === taskId && !t.completed ? { ...t, dueDate } : t
+            ),
+          },
+        })),
+
       pomodoro: { totalSessions: 0, todaySessions: 0, lastSessionDate: today() },
       incrementPomodoro: () => {
         const { pomodoro } = get()
@@ -195,6 +301,6 @@ export const useWidgetDataStore = create<WidgetDataState>()(
         set({ pomodoro: { totalSessions: pomodoro.totalSessions + 1, todaySessions, lastSessionDate: todayStr } })
       },
     }),
-    { name: 'primoria-widget-data' }
+    { name: WIDGET_DATA_STORAGE_KEY }
   )
 )

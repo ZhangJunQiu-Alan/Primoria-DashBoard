@@ -110,15 +110,18 @@ export function Dashboard({ showWidgetHeaders }: DashboardProps) {
     }
   }, [activeLayout, breakpoint, layouts, updateLayout])
 
+  function commitLayout(layout: readonly LayoutItem[]) {
+    updateLayout(breakpoint, [...layout] as LayoutItem[])
+  }
+
   return (
     <div ref={containerRef as React.RefObject<HTMLDivElement>}>
       <GridLayout
         width={width}
         layout={activeLayout}
         dragConfig={{ handle: '.drag-handle' }}
-        onLayoutChange={(currentLayout) =>
-          updateLayout(breakpoint, [...currentLayout] as LayoutItem[])
-        }
+        onDragStop={(currentLayout) => commitLayout(currentLayout)}
+        onResizeStop={(currentLayout) => commitLayout(currentLayout)}
         compactor={noCompactor}
         gridConfig={{
           cols,

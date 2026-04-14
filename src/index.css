@@ -7,6 +7,9 @@
   --bg:            #F7F3EC;
   --bg-card:       #FEFAF5;
   --bg-muted:      #EDE7DA;
+  --bg-hover:      #EFF6F0;
+  --bg-hover-dark: #E2EEE3;
+  --bg-icon:       #EAF4EB;
   --primary:       #7A9E7E;
   --primary-light: #A8C5AC;
   --primary-dark:  #5C7D60;
@@ -76,8 +79,34 @@ body::before {
   background: var(--bg-card);
   border: 1px solid var(--border);
   border-radius: var(--r-lg);
+  box-shadow: 0 2px 12px var(--shadow), 0 1px 3px var(--shadow);
   position: relative;
   overflow: hidden;
+}
+
+/* ── Button hover utilities ──────────────────────────────────── */
+.btn-ghost-hover:hover {
+  background: linear-gradient(135deg, var(--bg-hover), var(--bg-hover-dark)) !important;
+  border-color: var(--primary-light) !important;
+  color: var(--primary-dark) !important;
+}
+.btn-lift:hover {
+  transform: translateY(-1px);
+}
+.btn-danger-hover:hover {
+  color: #C4807A !important;
+  border-color: #C4807A !important;
+}
+.btn-icon-hover {
+  transition: background 0.15s, color 0.15s;
+}
+.btn-icon-hover:hover {
+  background: var(--bg-muted) !important;
+  color: var(--text) !important;
+}
+.widget-item:hover {
+  background: var(--bg-hover) !important;
+  border-color: var(--primary-light) !important;
 }
 .widget-card::before {
   content: '';

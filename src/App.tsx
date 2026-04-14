@@ -4,6 +4,7 @@ import { Dashboard } from '@/components/layout/Dashboard'
 import { AddWidgetModal } from '@/components/layout/AddWidgetModal'
 import { AIChatPanel } from '@/components/layout/AIChatPanel'
 import { TodoDndProvider } from '@/components/layout/TodoDndProvider'
+import { useWidgetDataStoreSync } from '@/hooks/useWidgetDataStoreSync'
 import { useBackgroundStore } from '@/store/backgroundStore'
 import { Toaster } from 'sonner'
 
@@ -14,6 +15,8 @@ export default function App() {
   const backgroundImage = useBackgroundStore((s) => s.backgroundImage)
   const setBackgroundImage = useBackgroundStore((s) => s.setBackgroundImage)
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  useWidgetDataStoreSync()
 
   function handleImageUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
@@ -61,11 +64,11 @@ export default function App() {
           {/* 背景图 */}
           <button
             onClick={() => fileInputRef.current?.click()}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium transition-all"
+            className="btn-ghost-hover flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium transition-all"
             style={{
               color: backgroundImage ? 'var(--primary-dark)' : 'var(--text-sub)',
               background: backgroundImage
-                ? 'linear-gradient(135deg, #EFF6F0, #E2EEE3)'
+                ? 'linear-gradient(135deg, var(--bg-hover), var(--bg-hover-dark))'
                 : 'rgba(254,250,245,0.92)',
               borderRadius: '999px',
               border: `1px solid ${backgroundImage ? 'var(--primary-light)' : 'var(--border)'}`,
@@ -73,18 +76,6 @@ export default function App() {
               backdropFilter: 'blur(8px)',
             }}
             title={backgroundImage ? '更换壁纸' : '设置壁纸'}
-            onMouseEnter={e => {
-              e.currentTarget.style.background = 'linear-gradient(135deg, #EFF6F0, #E2EEE3)'
-              e.currentTarget.style.borderColor = 'var(--primary-light)'
-              e.currentTarget.style.color = 'var(--primary-dark)'
-            }}
-            onMouseLeave={e => {
-              e.currentTarget.style.background = backgroundImage
-                ? 'linear-gradient(135deg, #EFF6F0, #E2EEE3)'
-                : 'rgba(254,250,245,0.92)'
-              e.currentTarget.style.borderColor = backgroundImage ? 'var(--primary-light)' : 'var(--border)'
-              e.currentTarget.style.color = backgroundImage ? 'var(--primary-dark)' : 'var(--text-sub)'
-            }}
           >
             <ImageIcon size={13} />
             壁纸
@@ -92,15 +83,13 @@ export default function App() {
           {backgroundImage && (
             <button
               onClick={() => setBackgroundImage(null)}
-              className="px-3 py-1.5 rounded-full text-sm transition-all"
+              className="btn-danger-hover px-3 py-1.5 rounded-full text-sm transition-all"
               style={{
                 color: 'var(--text-muted)',
                 background: 'rgba(254,250,245,0.92)',
                 border: '1px solid var(--border)',
                 backdropFilter: 'blur(8px)',
               }}
-              onMouseEnter={e => { e.currentTarget.style.color = '#C4807A'; e.currentTarget.style.borderColor = '#C4807A' }}
-              onMouseLeave={e => { e.currentTarget.style.color = 'var(--text-muted)'; e.currentTarget.style.borderColor = 'var(--border)' }}
             >
               移除壁纸
             </button>
@@ -109,14 +98,12 @@ export default function App() {
           {/* AI 助手 */}
           <button
             onClick={() => setAiOpen((o) => !o)}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white transition-all"
+            className="btn-lift flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white transition-all"
             style={{
               background: 'linear-gradient(135deg, var(--primary-light), var(--secondary))',
               borderRadius: '999px',
               boxShadow: '0 2px 8px rgba(196,149,106,0.35)',
             }}
-            onMouseEnter={e => (e.currentTarget.style.transform = 'translateY(-1px)')}
-            onMouseLeave={e => (e.currentTarget.style.transform = '')}
           >
             <Sparkles size={13} />
             AI 助手
@@ -125,14 +112,12 @@ export default function App() {
           {/* 添加组件 */}
           <button
             onClick={() => setModalOpen(true)}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white transition-all"
+            className="btn-lift flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white transition-all"
             style={{
               background: 'linear-gradient(145deg, var(--primary-light), var(--primary))',
               borderRadius: '999px',
               boxShadow: '0 4px 0 var(--primary-dark), 0 2px 8px rgba(92,125,96,0.3)',
             }}
-            onMouseEnter={e => (e.currentTarget.style.transform = 'translateY(-1px)')}
-            onMouseLeave={e => (e.currentTarget.style.transform = '')}
           >
             <Plus size={13} />
             添加组件
@@ -142,30 +127,18 @@ export default function App() {
         {/* 眼睛按钮 — 始终可见 */}
         <button
           onClick={() => setUiVisible((v) => !v)}
-          className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium transition-all"
+          className="btn-ghost-hover flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium transition-all"
           style={{
             color: uiVisible ? 'var(--text-sub)' : 'var(--primary-dark)',
             background: uiVisible
               ? 'rgba(254,250,245,0.92)'
-              : 'linear-gradient(135deg, #EFF6F0, #E2EEE3)',
+              : 'linear-gradient(135deg, var(--bg-hover), var(--bg-hover-dark))',
             borderRadius: '999px',
             border: `1px solid ${uiVisible ? 'var(--border)' : 'var(--primary-light)'}`,
             boxShadow: '0 2px 8px var(--shadow)',
             backdropFilter: 'blur(8px)',
           }}
           title={uiVisible ? '隐藏界面' : '显示界面'}
-          onMouseEnter={e => {
-            e.currentTarget.style.background = 'linear-gradient(135deg, #EFF6F0, #E2EEE3)'
-            e.currentTarget.style.borderColor = 'var(--primary-light)'
-            e.currentTarget.style.color = 'var(--primary-dark)'
-          }}
-          onMouseLeave={e => {
-            e.currentTarget.style.background = uiVisible
-              ? 'rgba(254,250,245,0.92)'
-              : 'linear-gradient(135deg, #EFF6F0, #E2EEE3)'
-            e.currentTarget.style.borderColor = uiVisible ? 'var(--border)' : 'var(--primary-light)'
-            e.currentTarget.style.color = uiVisible ? 'var(--text-sub)' : 'var(--primary-dark)'
-          }}
         >
           {uiVisible ? <Eye size={13} /> : <EyeOff size={13} />}
           {uiVisible ? '隐藏' : '显示'}
@@ -187,7 +160,7 @@ export default function App() {
 
         <main
           className="relative z-10"
-          style={{ paddingTop: uiVisible ? '52px' : '0', transition: 'padding-top 0.3s ease' }}
+          style={{ paddingTop: uiVisible ? '52px' : '0' }}
         >
           <Dashboard showWidgetHeaders={uiVisible} />
         </main>
