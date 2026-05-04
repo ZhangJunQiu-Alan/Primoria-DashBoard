@@ -7,6 +7,7 @@ import { AIChatPanel } from '@/components/layout/AIChatPanel'
 import { TodoDndProvider } from '@/components/layout/TodoDndProvider'
 import { CloudSyncControl } from '@/components/cloud/CloudSyncControl'
 import { CloudSyncProvider } from '@/components/cloud/CloudSyncProvider'
+import { useUiVisible } from '@/hooks/useUiVisible'
 import { useWidgetDataStoreSync } from '@/hooks/useWidgetDataStoreSync'
 import { ALLOWED_BACKGROUND_IMAGE_TYPES, MAX_BACKGROUND_IMAGE_BYTES } from '@/lib/cloudSnapshots'
 import { useBackgroundStore } from '@/store/backgroundStore'
@@ -23,7 +24,7 @@ export default function App() {
 function DashboardApp() {
   const [modalOpen, setModalOpen] = useState(false)
   const [aiOpen, setAiOpen] = useState(false)
-  const [uiVisible, setUiVisible] = useState(true)
+  const [uiVisible, setUiVisible] = useUiVisible()
   const backgroundImage = useBackgroundStore((s) => s.backgroundImage)
   const setBackgroundImage = useBackgroundStore((s) => s.setBackgroundImage)
   const fileInputRef = useRef<HTMLInputElement>(null)

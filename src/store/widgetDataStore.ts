@@ -77,6 +77,12 @@ interface WidgetDataState {
     dueDate: string | null
   ) => void
   moveScheduledTaskToDate: (widgetId: string, taskId: string, dueDate: string | null) => void
+  moveScheduledTaskToTodo: (
+    scheduledWidgetId: string,
+    taskId: string,
+    todoWidgetId: string,
+    toIndex: number
+  ) => void
 
   // Pomodoro
   pomodoro: PomodoroData
@@ -291,6 +297,32 @@ export const useWidgetDataStore = create<WidgetDataState>()(
             ),
           },
         })),
+      moveScheduledTaskToTodo: (scheduledWidgetId, taskId, todoWidgetId, toIndex) =>
+        set((s) => {
+          const fromList = s.scheduledTasksByWidget[scheduledWidgetId] ?? []
+          const task = fromList.find((t) => t.id === taskId)
+          if (!task) return s
+
+          const targetTodos = [...(s.todosByWidget[todoWidgetId] ?? [])]
+          const insertAt = Math.max(0, Math.min(toIndex, targetTodos.length))
+          targetTodos.splice(insertAt, 0, {
+            id: makeId(),
+            text: task.text,
+            done: task.completed,
+            createdAt: Date.now(),
+          })
+
+          return {
+            scheduledTasksByWidget: {
+              ...s.scheduledTasksByWidget,
+              [scheduledWidgetId]: fromList.filter((t) => t.id !== taskId),
+            },
+            todosByWidget: {
+              ...s.todosByWidget,
+              [todoWidgetId]: targetTodos,
+            },
+          }
+        }),
 
       pomodoro: { totalSessions: 0, todaySessions: 0, lastSessionDate: today() },
       incrementPomodoro: () => {

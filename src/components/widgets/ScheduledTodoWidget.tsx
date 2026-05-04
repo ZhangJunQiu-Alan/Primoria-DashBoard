@@ -16,7 +16,7 @@ import { useWidgetDataStore, type ScheduledTask } from '@/store/widgetDataStore'
 const MS_PER_DAY = 86400000
 const COLUMN_WIDTH = 132
 const COLUMN_GAP = 10
-const SCHEDULE_DAYS = 7
+const SCHEDULE_DAYS = 5
 const EMPTY_TASKS: ScheduledTask[] = []
 
 function addDays(base: string | Date, amount: number) {
@@ -31,10 +31,8 @@ function isDateInRange(dateStr: string, rangeStart: string, rangeEnd: string) {
   return dateStr >= rangeStart && dateStr <= rangeEnd
 }
 
-function getWeekStart(today: string) {
-  const date = parseLocalDateKey(today)
-  const day = date.getDay()
-  return addDays(date, day === 0 ? -6 : 1 - day)
+function getPageStart(today: string) {
+  return addDays(today, -2)
 }
 
 function getThisFriday(today: string) {
@@ -83,25 +81,25 @@ function getDelayCount(task: ScheduledTask, today: string) {
 function getVisibleDateForTask(
   task: ScheduledTask,
   today: string,
-  currentWeekStart: string,
-  viewedWeekStart: string,
-  viewedWeekEnd: string
+  currentPageStart: string,
+  viewedPageStart: string,
+  viewedPageEnd: string
 ) {
   if (task.completed) {
     const completedAnchor = task.completedAt ?? task.dueDate
     if (!completedAnchor) return null
-    return isDateInRange(completedAnchor, viewedWeekStart, viewedWeekEnd) ? completedAnchor : null
+    return isDateInRange(completedAnchor, viewedPageStart, viewedPageEnd) ? completedAnchor : null
   }
 
   if (!task.dueDate) {
-    return isDateInRange(today, viewedWeekStart, viewedWeekEnd) ? today : null
+    return isDateInRange(today, viewedPageStart, viewedPageEnd) ? today : null
   }
 
-  if (task.dueDate < currentWeekStart) {
-    return isDateInRange(today, viewedWeekStart, viewedWeekEnd) ? today : null
+  if (task.dueDate < currentPageStart) {
+    return isDateInRange(today, viewedPageStart, viewedPageEnd) ? today : null
   }
 
-  return isDateInRange(task.dueDate, viewedWeekStart, viewedWeekEnd) ? task.dueDate : null
+  return isDateInRange(task.dueDate, viewedPageStart, viewedPageEnd) ? task.dueDate : null
 }
 
 function compareTasksForColumn(a: ScheduledTask, b: ScheduledTask, columnDate: string, today: string) {
@@ -805,32 +803,32 @@ export function ScheduledTodoWidget({ widgetId }: { widgetId: string }) {
   const [taskPicker, setTaskPicker] = useState<{ id: string; el: HTMLElement } | null>(null)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editDraft, setEditDraft] = useState('')
-  const [weekOffset, setWeekOffset] = useState(0)
+  const [pageOffset, setPageOffset] = useState(0)
   const [isHovered, setIsHovered] = useState(false)
-  const currentWeekStart = useMemo(() => getWeekStart(today), [today])
-  const weekStart = useMemo(
-    () => addDays(currentWeekStart, weekOffset * SCHEDULE_DAYS),
-    [currentWeekStart, weekOffset]
+  const currentPageStart = useMemo(() => getPageStart(today), [today])
+  const pageStart = useMemo(
+    () => addDays(currentPageStart, pageOffset * SCHEDULE_DAYS),
+    [currentPageStart, pageOffset]
   )
-  const weekEnd = useMemo(() => addDays(weekStart, SCHEDULE_DAYS - 1), [weekStart])
-  const showWeekControls = isHovered || weekOffset !== 0
+  const pageEnd = useMemo(() => addDays(pageStart, SCHEDULE_DAYS - 1), [pageStart])
+  const showPageControls = isHovered || pageOffset !== 0
 
   const dateColumns = useMemo(() => {
-    return Array.from({ length: SCHEDULE_DAYS }, (_, index) => addDays(weekStart, index))
-  }, [weekStart])
+    return Array.from({ length: SCHEDULE_DAYS }, (_, index) => addDays(pageStart, index))
+  }, [pageStart])
 
   const tasksByDate = useMemo(() => {
     const map: Record<string, ScheduledTask[]> = {}
     for (const date of dateColumns) map[date] = []
 
     for (const task of tasks) {
-      const visibleDate = getVisibleDateForTask(task, today, currentWeekStart, weekStart, weekEnd)
+      const visibleDate = getVisibleDateForTask(task, today, currentPageStart, pageStart, pageEnd)
       if (!visibleDate || !map[visibleDate]) continue
       map[visibleDate].push(task)
     }
 
     return map
-  }, [currentWeekStart, dateColumns, tasks, today, weekEnd, weekStart])
+  }, [currentPageStart, dateColumns, tasks, today, pageEnd, pageStart])
 
   const canAcceptTimelineDrop =
     activeType === 'todo-item' || (activeType === 'scheduled-task' && activeWidgetId === widgetId)
@@ -884,12 +882,12 @@ export function ScheduledTodoWidget({ widgetId }: { widgetId: string }) {
         gap: '10px',
       }}
     >
-      {showWeekControls && (
+      {showPageControls && (
         <>
           <button
             onClick={() => {
               setTaskPicker(null)
-              setWeekOffset((value) => value - 1)
+              setPageOffset((value) => value - 1)
             }}
             style={{
               position: 'absolute',
@@ -909,7 +907,7 @@ export function ScheduledTodoWidget({ widgetId }: { widgetId: string }) {
               cursor: 'pointer',
               boxShadow: '0 8px 18px rgba(90,70,50,0.08)',
             }}
-            title="查看上一周"
+            title="前 5 天"
           >
             <ChevronLeft size={15} />
           </button>
@@ -917,7 +915,7 @@ export function ScheduledTodoWidget({ widgetId }: { widgetId: string }) {
           <button
             onClick={() => {
               setTaskPicker(null)
-              setWeekOffset((value) => value + 1)
+              setPageOffset((value) => value + 1)
             }}
             style={{
               position: 'absolute',
@@ -937,18 +935,18 @@ export function ScheduledTodoWidget({ widgetId }: { widgetId: string }) {
               cursor: 'pointer',
               boxShadow: '0 8px 18px rgba(90,70,50,0.08)',
             }}
-            title="查看下一周"
+            title="后 5 天"
           >
             <ChevronRight size={15} />
           </button>
         </>
       )}
 
-      {weekOffset !== 0 && (
+      {pageOffset !== 0 && (
         <button
           onClick={() => {
             setTaskPicker(null)
-            setWeekOffset(0)
+            setPageOffset(0)
           }}
           style={{
             position: 'absolute',
@@ -967,7 +965,7 @@ export function ScheduledTodoWidget({ widgetId }: { widgetId: string }) {
             boxShadow: '0 8px 18px rgba(90,70,50,0.08)',
           }}
         >
-          回到本周
+          回到今天
         </button>
       )}
 

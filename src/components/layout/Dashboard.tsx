@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from 'react'
+import { useMemo } from 'react'
 import {
   findOrGenerateResponsiveLayout,
   GridLayout,
@@ -104,11 +104,10 @@ export function Dashboard({ showWidgetHeaders }: DashboardProps) {
     compactor: noCompactor,
   })
 
-  useEffect(() => {
-    if (!layouts[breakpoint] && activeLayout.length > 0) {
-      updateLayout(breakpoint, activeLayout as LayoutItem[])
-    }
-  }, [activeLayout, breakpoint, layouts, updateLayout])
+  // Layouts for breakpoints the user hasn't customized are derived on the fly
+  // by buildResponsiveLayouts. We deliberately do NOT auto-persist that derivation —
+  // doing so would freeze the generated layout, blocking later edits at lg from
+  // propagating to md/sm. Only commitLayout (drag/resize) writes to the store.
 
   function commitLayout(layout: readonly LayoutItem[]) {
     updateLayout(breakpoint, [...layout] as LayoutItem[])

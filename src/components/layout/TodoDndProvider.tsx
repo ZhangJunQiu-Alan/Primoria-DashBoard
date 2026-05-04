@@ -25,6 +25,7 @@ export function TodoDndProvider({ children }: { children: React.ReactNode }) {
   const moveTodo = useWidgetDataStore((s) => s.moveTodo)
   const moveTodoToScheduledDate = useWidgetDataStore((s) => s.moveTodoToScheduledDate)
   const moveScheduledTaskToDate = useWidgetDataStore((s) => s.moveScheduledTaskToDate)
+  const moveScheduledTaskToTodo = useWidgetDataStore((s) => s.moveScheduledTaskToTodo)
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }))
 
   const activeItem = active
@@ -73,6 +74,21 @@ export function TodoDndProvider({ children }: { children: React.ReactNode }) {
         fromWidgetId,
         ((a.data.current?.taskId as string | undefined) ?? (a.id as string)),
         (over.data.current?.dueDate as string | null | undefined) ?? null
+      )
+      return
+    }
+
+    if (fromType === 'scheduled-task' && (toType === 'todo-item' || toType === 'todo-container')) {
+      const taskId = (a.data.current?.taskId as string | undefined) ?? (a.id as string)
+      const targetTodos = todosByWidget[toWidgetId] ?? []
+      const toIndex = toType === 'todo-item'
+        ? targetTodos.findIndex((t) => t.id === over.id)
+        : targetTodos.length
+      moveScheduledTaskToTodo(
+        fromWidgetId,
+        taskId,
+        toWidgetId,
+        toIndex >= 0 ? toIndex : targetTodos.length
       )
       return
     }

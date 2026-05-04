@@ -142,7 +142,10 @@ export function TodoWidget({ widgetId = 'default' }: TodoWidgetProps) {
 
   // Cross-widget drag state (to show visual feedback)
   const { activeId, activeWidgetId, activeType } = useTodoDndState()
-  const isDraggingFromOther = activeType === 'todo-item' && activeId !== null && activeWidgetId !== widgetId
+  const isDraggingFromOther =
+    activeId !== null &&
+    ((activeType === 'todo-item' && activeWidgetId !== widgetId) ||
+      activeType === 'scheduled-task')
 
   // Droppable for when this widget is the drop target (especially when empty)
   const { setNodeRef: setDropRef, isOver } = useDroppable({
