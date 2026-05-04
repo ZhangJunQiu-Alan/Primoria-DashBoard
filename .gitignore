@@ -6,3 +6,5 @@ dist
 !.env.example
 *.local
 app-icon.png
+supabase/.temp/
+supabase/.branches/
