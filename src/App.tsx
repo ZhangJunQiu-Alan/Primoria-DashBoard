@@ -1,14 +1,26 @@
 import { useRef, useState } from 'react'
 import { Plus, Eye, EyeOff, Sparkles, ImageIcon } from 'lucide-react'
+import { toast } from 'sonner'
 import { Dashboard } from '@/components/layout/Dashboard'
 import { AddWidgetModal } from '@/components/layout/AddWidgetModal'
 import { AIChatPanel } from '@/components/layout/AIChatPanel'
 import { TodoDndProvider } from '@/components/layout/TodoDndProvider'
+import { CloudSyncControl } from '@/components/cloud/CloudSyncControl'
+import { CloudSyncProvider } from '@/components/cloud/CloudSyncProvider'
 import { useWidgetDataStoreSync } from '@/hooks/useWidgetDataStoreSync'
+import { ALLOWED_BACKGROUND_IMAGE_TYPES, MAX_BACKGROUND_IMAGE_BYTES } from '@/lib/cloudSnapshots'
 import { useBackgroundStore } from '@/store/backgroundStore'
 import { Toaster } from 'sonner'
 
 export default function App() {
+  return (
+    <CloudSyncProvider>
+      <DashboardApp />
+    </CloudSyncProvider>
+  )
+}
+
+function DashboardApp() {
   const [modalOpen, setModalOpen] = useState(false)
   const [aiOpen, setAiOpen] = useState(false)
   const [uiVisible, setUiVisible] = useState(true)
@@ -21,6 +33,16 @@ export default function App() {
   function handleImageUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     if (!file) return
+    if (!ALLOWED_BACKGROUND_IMAGE_TYPES.includes(file.type)) {
+      toast.error('请选择 PNG、JPG、WebP 或 GIF 图片')
+      e.target.value = ''
+      return
+    }
+    if (file.size > MAX_BACKGROUND_IMAGE_BYTES) {
+      toast.error('壁纸图片不能超过 5MB')
+      e.target.value = ''
+      return
+    }
     const reader = new FileReader()
     reader.onload = (ev) => {
       const dataUrl = ev.target?.result as string
@@ -108,6 +130,8 @@ export default function App() {
             <Sparkles size={13} />
             AI 助手
           </button>
+
+          <CloudSyncControl />
 
           {/* 添加组件 */}
           <button

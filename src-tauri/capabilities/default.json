@@ -1,9 +1,0 @@
-{
-  "$schema": "../node_modules/@tauri-apps/cli/schema/acl/capability.json",
-  "identifier": "default",
-  "description": "Default capability",
-  "windows": ["main", "todo-popout-*"],
-  "permissions": [
-    "core:default"
-  ]
-}

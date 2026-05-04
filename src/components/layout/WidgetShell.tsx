@@ -1,6 +1,5 @@
 import { useState, useRef } from 'react'
 import { X, SquareArrowOutUpRight, Pencil } from 'lucide-react'
-import { invoke } from '@tauri-apps/api/core'
 import type { WidgetType } from '@/types/widget'
 import { useDashboardStore } from '@/store/dashboardStore'
 import { ClockWidget } from '@/components/widgets/ClockWidget'
@@ -43,6 +42,7 @@ export function WidgetShell({ type, widgetId, onRemove, showHeader }: WidgetShel
   const [draft, setDraft] = useState('')
   const [popoutOpen, setPopoutOpen] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
+  const popoutRef = useRef<Window | null>(null)
 
   function startEdit() {
     setDraft(displayTitle)
@@ -143,12 +143,19 @@ export function WidgetShell({ type, widgetId, onRemove, showHeader }: WidgetShel
             <button
               onMouseDown={(e) => e.stopPropagation()}
               onClick={() => {
-                if (popoutOpen) {
-                  invoke('close_todo_popout', { widgetId })
+                if (popoutRef.current && !popoutRef.current.closed) {
+                  popoutRef.current.close()
+                  popoutRef.current = null
                   setPopoutOpen(false)
                 } else {
-                  invoke('open_todo_popout', { widgetId, title: displayTitle })
-                  setPopoutOpen(true)
+                  const params = new URLSearchParams({ widgetId, title: displayTitle })
+                  const nextWindow = window.open(
+                    `/popout.html?${params.toString()}`,
+                    `todo-popout-${widgetId}`,
+                    'popup,width=320,height=460,resizable=yes'
+                  )
+                  popoutRef.current = nextWindow
+                  setPopoutOpen(Boolean(nextWindow))
                 }
               }}
               className="btn-icon-hover opacity-0 group-hover/header:opacity-100 p-1 rounded-lg"

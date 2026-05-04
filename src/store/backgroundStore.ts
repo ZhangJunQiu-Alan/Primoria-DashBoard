@@ -1,18 +1,18 @@
 import { create } from 'zustand'
 
-const KEY = 'primoria-background'
+export const BACKGROUND_STORAGE_KEY = 'primoria-background'
 
 // Read once at startup
 function loadImage(): string | null {
-  try { return localStorage.getItem(KEY) } catch { return null }
+  try { return localStorage.getItem(BACKGROUND_STORAGE_KEY) } catch { return null }
 }
 
 function saveImage(dataUrl: string | null) {
   try {
     if (dataUrl === null) {
-      localStorage.removeItem(KEY)
+      localStorage.removeItem(BACKGROUND_STORAGE_KEY)
     } else {
-      localStorage.setItem(KEY, dataUrl)
+      localStorage.setItem(BACKGROUND_STORAGE_KEY, dataUrl)
     }
   } catch (e) {
     // QuotaExceededError — image too large, silently ignore

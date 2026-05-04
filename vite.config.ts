@@ -18,10 +18,9 @@ export default defineConfig({
       },
     },
   },
-  // Tauri dev server config
   server: {
     strictPort: true,
     port: 5173,
   },
-  envPrefix: ['VITE_', 'TAURI_'],
+  envPrefix: ['VITE_'],
 })
