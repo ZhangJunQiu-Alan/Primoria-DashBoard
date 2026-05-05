@@ -8,7 +8,8 @@
 - Read a file once per conversation. Don't re-read unless it may have changed.
 
 ## Stack
-- React 19 + TypeScript + Tailwind CSS 4 + Vite 8 + Tauri 2
+- React 19 + TypeScript + Tailwind CSS 4 + Vite 8 (web app, deployed on Cloudflare Pages)
+- Cloud sync: Supabase Auth + Postgres + Storage (optional; app works offline without it)
 - State: Zustand 5 with `persist` middleware → localStorage
 - Layout: `react-grid-layout` (responsive, 3 breakpoints: lg/md/sm)
 - Icons: `lucide-react` | Toasts: `sonner`
@@ -31,7 +32,7 @@ src/
     dashboardStore.ts            # Layout, widget instances, names
     widgetDataStore.ts           # Per-widget data (todos, habits, links…)
     backgroundStore.ts           # Background image (base64)
-    neteaseStore.ts              # NetEase Cloud Music auth + playback
+    musicStore.ts                # Music library + per-widget current track
   types/widget.ts                # WidgetType union, LayoutItem, etc.
 ```
 
