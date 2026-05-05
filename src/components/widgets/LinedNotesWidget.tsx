@@ -1,175 +1,80 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
 import { Plus, X } from 'lucide-react'
+import {
+  createBlankLinedNotePage,
+  createLinedNotesDocument,
+  normalizeLinedNotesDocument,
+  useWidgetDataStore,
+  type LinedNotesDocument,
+} from '@/store/widgetDataStore'
 
 const LINE_HEIGHT = 28
-const DEBOUNCE_MS = 600
-const DOCUMENT_VERSION = 1
 
 interface LinedNotesWidgetProps {
   widgetId?: string
 }
 
-interface LinedNotePage {
-  id: string
-  content: string
-}
-
-interface LinedNotesDocument {
-  version: 1
-  activePageId: string
-  pages: LinedNotePage[]
-}
-
-function makePageId() {
-  return `lined-note-page-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
-}
-
-function createBlankPage(): LinedNotePage {
-  return { id: makePageId(), content: '' }
-}
-
-function createDocument(initialContent = ''): LinedNotesDocument {
-  const firstPage = { id: makePageId(), content: initialContent }
-  return {
-    version: DOCUMENT_VERSION,
-    activePageId: firstPage.id,
-    pages: [firstPage],
-  }
-}
-
-function normalizeDocument(value: unknown): LinedNotesDocument {
-  if (typeof value === 'string') return createDocument(value)
-
-  if (!value || typeof value !== 'object') return createDocument()
-
-  const candidate = value as Partial<LinedNotesDocument>
-  const rawPages: unknown[] = Array.isArray(candidate.pages) ? candidate.pages : []
-  const pages = rawPages
-    .filter((page) => Boolean(page) && typeof page === 'object')
-    .map((page) => ({
-      id:
-        typeof (page as Partial<LinedNotePage>).id === 'string' &&
-        (page as Partial<LinedNotePage>).id?.trim()
-          ? (page as Partial<LinedNotePage>).id as string
-          : makePageId(),
-      content:
-        typeof (page as Partial<LinedNotePage>).content === 'string'
-          ? (page as Partial<LinedNotePage>).content as string
-          : '',
-    }))
-
-  const ensuredPages = pages.length > 0 ? pages : [createBlankPage()]
-  const activePageId = ensuredPages.some((page) => page.id === candidate.activePageId)
-    ? (candidate.activePageId as string)
-    : ensuredPages[0].id
-
-  return {
-    version: DOCUMENT_VERSION,
-    activePageId,
-    pages: ensuredPages,
-  }
-}
-
-function isDocumentPayload(value: unknown) {
-  return Boolean(
-    value &&
-    typeof value === 'object' &&
-    ('pages' in value || 'activePageId' in value || 'version' in value)
-  )
-}
-
-function loadDocument(storageKey: string) {
-  try {
-    const raw = localStorage.getItem(storageKey)
-    if (!raw) return createDocument()
-    const parsed = JSON.parse(raw) as unknown
-    return isDocumentPayload(parsed) ? normalizeDocument(parsed) : createDocument(raw)
-  } catch {
-    try {
-      const fallback = localStorage.getItem(storageKey)
-      if (fallback === null) return createDocument()
-      return normalizeDocument(fallback)
-    } catch {
-      return createDocument()
-    }
-  }
-}
-
 export function LinedNotesWidget({ widgetId = 'default' }: LinedNotesWidgetProps) {
-  const storageKey = useMemo(() => `primoria-lined-notes-${widgetId}`, [widgetId])
-  const [documentState, setDocumentState] = useState<LinedNotesDocument>(() => loadDocument(storageKey))
-  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-
-  useEffect(() => {
-    setDocumentState(loadDocument(storageKey))
-  }, [storageKey])
-
-  useEffect(() => {
-    timerRef.current = setTimeout(() => {
-      localStorage.setItem(storageKey, JSON.stringify(documentState))
-    }, DEBOUNCE_MS)
-
-    return () => {
-      if (timerRef.current) clearTimeout(timerRef.current)
-    }
-  }, [documentState, storageKey])
+  const storedDocument = useWidgetDataStore((s) => s.linedNotesByWidget[widgetId])
+  const setLinedNotesDocument = useWidgetDataStore((s) => s.setLinedNotesDocument)
+  const documentState = normalizeLinedNotesDocument(storedDocument ?? createLinedNotesDocument())
 
   const activePageIndex = documentState.pages.findIndex((page) => page.id === documentState.activePageId)
   const safeActivePageIndex = activePageIndex >= 0 ? activePageIndex : 0
   const activePage = documentState.pages[safeActivePageIndex]
 
+  function commitDocument(document: LinedNotesDocument) {
+    setLinedNotesDocument(widgetId, document)
+  }
+
   function setActivePage(pageId: string) {
-    setDocumentState((current) => {
-      if (current.activePageId === pageId) return current
-      return { ...current, activePageId: pageId }
-    })
+    if (documentState.activePageId === pageId) return
+    commitDocument({ ...documentState, activePageId: pageId })
   }
 
   function handleContentChange(content: string) {
-    setDocumentState((current) => ({
-      ...current,
-      pages: current.pages.map((page) =>
-        page.id === current.activePageId ? { ...page, content } : page
+    commitDocument({
+      ...documentState,
+      pages: documentState.pages.map((page) =>
+        page.id === documentState.activePageId ? { ...page, content } : page
       ),
-    }))
+    })
   }
 
   function handleCreatePage() {
-    setDocumentState((current) => {
-      const currentIndex = current.pages.findIndex((page) => page.id === current.activePageId)
-      const insertIndex = currentIndex >= 0 ? currentIndex + 1 : current.pages.length
-      const nextPage = createBlankPage()
-      const nextPages = [...current.pages]
-      nextPages.splice(insertIndex, 0, nextPage)
-      return {
-        ...current,
-        activePageId: nextPage.id,
-        pages: nextPages,
-      }
+    const currentIndex = documentState.pages.findIndex((page) => page.id === documentState.activePageId)
+    const insertIndex = currentIndex >= 0 ? currentIndex + 1 : documentState.pages.length
+    const nextPage = createBlankLinedNotePage()
+    const nextPages = [...documentState.pages]
+    nextPages.splice(insertIndex, 0, nextPage)
+    commitDocument({
+      ...documentState,
+      activePageId: nextPage.id,
+      pages: nextPages,
     })
   }
 
   function handleDeletePage() {
-    setDocumentState((current) => {
-      if (current.pages.length <= 1) return current
+    if (documentState.pages.length <= 1) return
 
-      const currentIndex = current.pages.findIndex((page) => page.id === current.activePageId)
-      if (currentIndex < 0) return current
+    const currentIndex = documentState.pages.findIndex((page) => page.id === documentState.activePageId)
+    if (currentIndex < 0) return
 
-      const currentPage = current.pages[currentIndex]
-      if (currentPage.content.trim() && !window.confirm('当前页面有内容，确认删除这一页吗？')) {
-        return current
-      }
+    const currentPage = documentState.pages[currentIndex]
+    if (currentPage.content.trim() && !window.confirm('当前页面有内容，确认删除这一页吗？')) {
+      return
+    }
 
-      const nextPages = current.pages.filter((page) => page.id !== currentPage.id)
-      const nextActivePage = nextPages[currentIndex] ?? nextPages[currentIndex - 1] ?? nextPages[0]
-      if (!nextActivePage) return createDocument()
+    const nextPages = documentState.pages.filter((page) => page.id !== currentPage.id)
+    const nextActivePage = nextPages[currentIndex] ?? nextPages[currentIndex - 1] ?? nextPages[0]
+    if (!nextActivePage) {
+      commitDocument(createLinedNotesDocument())
+      return
+    }
 
-      return {
-        ...current,
-        activePageId: nextActivePage.id,
-        pages: nextPages,
-      }
+    commitDocument({
+      ...documentState,
+      activePageId: nextActivePage.id,
+      pages: nextPages,
     })
   }
 

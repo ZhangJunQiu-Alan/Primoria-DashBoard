@@ -20,6 +20,7 @@ const VALID_TYPES: WidgetType[] = [
   'music-player',
   'habits',
   'scheduled-todo',
+  'daily-brief',
 ]
 
 const DASHBOARD_BREAKPOINTS: DashboardBreakpoint[] = ['lg', 'md', 'sm']
@@ -51,6 +52,7 @@ const DEFAULT_SIZES: Record<WidgetType, { w: number; h: number; minW: number; mi
   'music-player': { w: 4, h: 4, minW: 2, minH: 2 },
   habits: { w: 5, h: 4, minW: 3, minH: 3 },
   'scheduled-todo': { w: 4, h: 5, minW: 3, minH: 4 },
+  'daily-brief': { w: 4, h: 3, minW: 3, minH: 3 },
 }
 
 const DEFAULT_WIDGETS: WidgetInstance[] = [

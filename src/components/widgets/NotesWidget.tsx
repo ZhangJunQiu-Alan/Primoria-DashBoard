@@ -1,26 +1,18 @@
-import { useState, useEffect, useRef } from 'react'
+import { useWidgetDataStore } from '@/store/widgetDataStore'
 
-const STORAGE_KEY = 'primoria-notes'
-const DEBOUNCE_MS = 600
+interface NotesWidgetProps {
+  widgetId?: string
+}
 
-export function NotesWidget() {
-  const [content, setContent] = useState(() => localStorage.getItem(STORAGE_KEY) ?? '')
-  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-
-  useEffect(() => {
-    timerRef.current = setTimeout(() => {
-      localStorage.setItem(STORAGE_KEY, content)
-    }, DEBOUNCE_MS)
-    return () => {
-      if (timerRef.current) clearTimeout(timerRef.current)
-    }
-  }, [content])
+export function NotesWidget({ widgetId = 'default' }: NotesWidgetProps) {
+  const content = useWidgetDataStore((s) => s.notesByWidget[widgetId] ?? '')
+  const setNote = useWidgetDataStore((s) => s.setNote)
 
   return (
     <div className="flex flex-col h-full gap-2">
       <textarea
         value={content}
-        onChange={(e) => setContent(e.target.value)}
+        onChange={(e) => setNote(widgetId, e.target.value)}
         placeholder="开始记录..."
         className="flex-1 resize-none outline-none leading-relaxed text-sm"
         style={{ background: 'transparent', color: 'var(--text)', fontFamily: "'DM Sans', sans-serif" }}

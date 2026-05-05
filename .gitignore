@@ -4,6 +4,9 @@ dist
 .env
 .env.*
 !.env.example
+.dev.vars*
+!.dev.vars.example
+.wrangler/
 *.local
 app-icon.png
 supabase/.temp/

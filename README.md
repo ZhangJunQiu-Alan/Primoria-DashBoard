@@ -9,6 +9,22 @@ pnpm install
 pnpm dev
 ```
 
+AI / Google Calendar features use Cloudflare Pages Functions under `/api/*`. For local AI testing, run the Pages dev server instead:
+
+```bash
+pnpm dev:pages
+```
+
+Then open:
+
+```text
+http://127.0.0.1:8788/
+```
+
+`pnpm dev` only starts Vite at `http://127.0.0.1:5173/`, so `/api/ai/chat` is not available there.
+
+Copy `.dev.vars.example` to `.dev.vars` and fill the server-side secrets for local Pages Functions. Keep `.dev.vars` uncommitted.
+
 Production build:
 
 ```bash

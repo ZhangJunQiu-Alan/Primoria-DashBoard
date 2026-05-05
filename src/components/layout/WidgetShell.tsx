@@ -13,6 +13,7 @@ import { GoogleCalendarWidget } from '@/components/widgets/GoogleCalendarWidget'
 import { HabitWidget } from '@/components/widgets/HabitWidget'
 import { MusicPlayerWidget } from '@/components/widgets/MusicPlayerWidget'
 import { ScheduledTodoWidget } from '@/components/widgets/ScheduledTodoWidget'
+import { DailyBriefWidget } from '@/components/widgets/DailyBriefWidget'
 
 const DEFAULT_TITLES: Record<WidgetType, string> = {
   clock: '时钟',
@@ -26,6 +27,7 @@ const DEFAULT_TITLES: Record<WidgetType, string> = {
   'music-player': '网易云播放器',
   'habits': '习惯打卡',
   'scheduled-todo': '日程任务',
+  'daily-brief': '每日简报',
 }
 
 interface WidgetShellProps {
@@ -61,7 +63,7 @@ export function WidgetShell({ type, widgetId, onRemove, showHeader }: WidgetShel
       case 'clock': return <ClockWidget />
       case 'quick-links': return <QuickLinksWidget />
       case 'motto': return <MottoWidget />
-      case 'notes': return <NotesWidget />
+      case 'notes': return <NotesWidget widgetId={widgetId} />
       case 'lined-notes': return <LinedNotesWidget widgetId={widgetId} />
       case 'todo': return <TodoWidget widgetId={widgetId} />
       case 'pomodoro': return <PomodoroWidget />
@@ -69,6 +71,7 @@ export function WidgetShell({ type, widgetId, onRemove, showHeader }: WidgetShel
       case 'music-player': return <MusicPlayerWidget widgetId={widgetId} />
       case 'habits': return <HabitWidget widgetId={widgetId} />
       case 'scheduled-todo': return <ScheduledTodoWidget widgetId={widgetId} />
+      case 'daily-brief': return <DailyBriefWidget widgetId={widgetId} />
       default: return null
     }
   }

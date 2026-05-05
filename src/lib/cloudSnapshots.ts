@@ -4,11 +4,14 @@ import { useDashboardStore } from '@/store/dashboardStore'
 import {
   WIDGET_DATA_STORAGE_KEY,
   useWidgetDataStore,
+  type DailyBriefData,
   type HabitItem,
+  type LinedNotesDocument,
   type PomodoroData,
   type QuickLink,
   type ScheduledTask,
   type TodoItem,
+  normalizeLinedNotesDocument,
 } from '@/store/widgetDataStore'
 
 export const DASHBOARD_STORAGE_KEY = 'primoria-dashboard'
@@ -25,8 +28,11 @@ export interface WidgetDataSnapshot {
   habitsByWidget: Record<string, HabitItem[]>
   habitLogs: Record<string, string[]>
   calendarEmbeds: Record<string, string>
+  notesByWidget: Record<string, string>
+  linedNotesByWidget: Record<string, LinedNotesDocument>
   scheduledTasksByWidget: Record<string, ScheduledTask[]>
   pomodoro: PomodoroData
+  dailyBriefsByDate: Record<string, DailyBriefData>
 }
 
 export interface LocalDashboardBackup {
@@ -67,8 +73,11 @@ export function applyDashboardSnapshot(snapshot: DashboardSnapshotData) {
 export function getWidgetDataSnapshot(): WidgetDataSnapshot {
   const {
     calendarEmbeds,
+    dailyBriefsByDate,
     habitLogs,
     habitsByWidget,
+    linedNotesByWidget,
+    notesByWidget,
     pomodoro,
     quickLinks,
     scheduledTasksByWidget,
@@ -77,8 +86,11 @@ export function getWidgetDataSnapshot(): WidgetDataSnapshot {
 
   return cloneJson({
     calendarEmbeds,
+    dailyBriefsByDate,
     habitLogs,
     habitsByWidget,
+    linedNotesByWidget,
+    notesByWidget,
     pomodoro,
     quickLinks,
     scheduledTasksByWidget,
@@ -87,18 +99,28 @@ export function getWidgetDataSnapshot(): WidgetDataSnapshot {
 }
 
 export function applyWidgetDataSnapshot(snapshot: WidgetDataSnapshot) {
+  const normalizedLinedNotes = Object.fromEntries(
+    Object.entries(snapshot.linedNotesByWidget ?? {}).map(([widgetId, document]) => [
+      widgetId,
+      normalizeLinedNotesDocument(document),
+    ])
+  )
+
   useWidgetDataStore.setState({
     quickLinks: cloneJson(snapshot.quickLinks ?? []),
     todosByWidget: cloneJson(snapshot.todosByWidget ?? {}),
     habitsByWidget: cloneJson(snapshot.habitsByWidget ?? {}),
     habitLogs: cloneJson(snapshot.habitLogs ?? {}),
     calendarEmbeds: cloneJson(snapshot.calendarEmbeds ?? {}),
+    notesByWidget: cloneJson(snapshot.notesByWidget ?? {}),
+    linedNotesByWidget: cloneJson(normalizedLinedNotes),
     scheduledTasksByWidget: cloneJson(snapshot.scheduledTasksByWidget ?? {}),
     pomodoro: cloneJson(snapshot.pomodoro ?? {
       totalSessions: 0,
       todaySessions: 0,
       lastSessionDate: new Date().toISOString().slice(0, 10),
     }),
+    dailyBriefsByDate: cloneJson(snapshot.dailyBriefsByDate ?? {}),
   })
 }
 

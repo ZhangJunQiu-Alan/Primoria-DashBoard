@@ -1,0 +1,185 @@
+import { useCallback, useEffect, useState } from 'react'
+import { CalendarDays, LoaderCircle, RefreshCw, Sparkles } from 'lucide-react'
+import { toast } from 'sonner'
+import { connectGoogleCalendar, fetchCalendarEvents, fetchCalendarStatus, generateDailyBrief } from '@/lib/ai/api'
+import { buildBriefContext, getLocalDayIsoRange } from '@/lib/ai/briefContext'
+import type { CalendarEvent } from '@/lib/ai/types'
+import { useCloudSync } from '@/components/cloud/cloudSyncContext'
+import { useCurrentDayKey } from '@/hooks/useCurrentDayKey'
+import { useWidgetDataStore } from '@/store/widgetDataStore'
+
+interface DailyBriefWidgetProps {
+  widgetId: string
+}
+
+export function DailyBriefWidget({ widgetId: _widgetId }: DailyBriefWidgetProps) {
+  void _widgetId
+
+  const { configured, user } = useCloudSync()
+  const today = useCurrentDayKey()
+  const brief = useWidgetDataStore((s) => s.dailyBriefsByDate[today])
+  const setDailyBrief = useWidgetDataStore((s) => s.setDailyBrief)
+  const removeDailyBrief = useWidgetDataStore((s) => s.removeDailyBrief)
+  const [calendarConnected, setCalendarConnected] = useState(false)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const ready = configured && Boolean(user)
+
+  useEffect(() => {
+    if (!ready) return
+    void fetchCalendarStatus()
+      .then((status) => setCalendarConnected(status.connected))
+      .catch(() => setCalendarConnected(false))
+  }, [ready])
+
+  const loadBrief = useCallback(async (force: boolean) => {
+    if (!ready || loading) return
+
+    setLoading(true)
+    setError(null)
+
+    try {
+      const range = getLocalDayIsoRange(today)
+      let connected = false
+      let events: CalendarEvent[] = []
+
+      try {
+        const calendar = await fetchCalendarEvents(range)
+        connected = calendar.connected
+        events = calendar.events
+      } catch {
+        connected = false
+        events = []
+      }
+
+      setCalendarConnected(connected)
+      const { context, sourceFingerprint } = buildBriefContext(today, events)
+      if (!force && brief?.sourceFingerprint === sourceFingerprint) return
+
+      const result = await generateDailyBrief({ context, date: today, force })
+      setDailyBrief({
+        calendarConnected: connected,
+        date: today,
+        generatedAt: new Date().toISOString(),
+        recommendation: result.recommendation,
+        sourceFingerprint,
+        summary: result.summary,
+      })
+    } catch (err) {
+      const message = err instanceof Error ? err.message : '每日简报生成失败'
+      setError(message)
+    } finally {
+      setLoading(false)
+    }
+  }, [brief?.sourceFingerprint, loading, ready, setDailyBrief, today])
+
+  useEffect(() => {
+    if (!ready || brief || loading) return
+    void loadBrief(false)
+  }, [brief, loadBrief, loading, ready])
+
+  async function handleConnectCalendar() {
+    try {
+      await connectGoogleCalendar()
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Google Calendar 连接失败'
+      toast.error(message)
+    }
+  }
+
+  function handleRefresh() {
+    removeDailyBrief(today)
+    void loadBrief(true)
+  }
+
+  if (!ready) {
+    return (
+      <div className="flex h-full flex-col items-center justify-center gap-3 text-center">
+        <Sparkles size={28} style={{ color: 'var(--border)' }} />
+        <p style={{ fontSize: '14px', color: 'var(--text-muted)' }}>登录后生成每日简报</p>
+      </div>
+    )
+  }
+
+  return (
+    <div className="flex h-full flex-col gap-3 overflow-hidden">
+      <div
+        className="flex items-center justify-between gap-2 rounded-xl px-3 py-2"
+        style={{
+          background: calendarConnected ? 'var(--bg-hover)' : 'var(--bg-muted)',
+          border: '1px solid var(--border)',
+        }}
+      >
+        <div className="flex min-w-0 items-center gap-2">
+          <CalendarDays size={14} style={{ color: calendarConnected ? 'var(--primary-dark)' : 'var(--text-muted)' }} />
+          <span
+            className="truncate"
+            style={{ fontSize: '12px', color: calendarConnected ? 'var(--primary-dark)' : 'var(--text-muted)' }}
+          >
+            {calendarConnected ? 'Google Calendar 已连接' : '连接 Google Calendar 后可读取会议'}
+          </span>
+        </div>
+        {!calendarConnected && (
+          <button
+            onClick={handleConnectCalendar}
+            className="rounded-lg px-2 py-1 text-xs font-semibold"
+            style={{ color: 'white', background: 'var(--primary)' }}
+          >
+            连接
+          </button>
+        )}
+      </div>
+
+      <div className="flex flex-1 flex-col justify-center gap-3 overflow-hidden">
+        {loading && (
+          <div className="flex items-center justify-center gap-2" style={{ color: 'var(--text-muted)', fontSize: '13px' }}>
+            <LoaderCircle size={15} className="animate-spin" />
+            正在生成简报
+          </div>
+        )}
+
+        {!loading && error && (
+          <div className="rounded-xl px-3 py-2" style={{ background: 'rgba(196,128,122,0.12)', color: '#9B4A45', fontSize: '13px' }}>
+            {error}
+          </div>
+        )}
+
+        {!loading && brief && (
+          <>
+            <div
+              className="rounded-2xl px-4 py-3"
+              style={{ background: 'var(--bg-muted)', border: '1px solid var(--border)' }}
+            >
+              <p style={{ fontSize: '15px', lineHeight: 1.65, color: 'var(--text)', fontWeight: 600 }}>
+                {brief.summary}
+              </p>
+            </div>
+            <div className="flex items-start gap-2">
+              <Sparkles size={14} style={{ color: 'var(--secondary)', marginTop: '3px', flexShrink: 0 }} />
+              <p style={{ fontSize: '13px', lineHeight: 1.6, color: 'var(--text-sub)' }}>
+                {brief.recommendation}
+              </p>
+            </div>
+          </>
+        )}
+
+        {!loading && !brief && !error && (
+          <div className="flex flex-col items-center justify-center gap-3 text-center">
+            <Sparkles size={28} style={{ color: 'var(--border)' }} />
+            <p style={{ fontSize: '14px', color: 'var(--text-muted)' }}>今天还没有简报</p>
+          </div>
+        )}
+      </div>
+
+      <button
+        onClick={handleRefresh}
+        disabled={loading}
+        className="flex flex-shrink-0 items-center justify-center gap-1.5 rounded-xl py-2 text-sm font-semibold disabled:opacity-60"
+        style={{ background: 'var(--bg-muted)', color: 'var(--text-sub)', border: '1px solid var(--border)' }}
+      >
+        {loading ? <LoaderCircle size={14} className="animate-spin" /> : <RefreshCw size={14} />}
+        手动刷新
+      </button>
+    </div>
+  )
+}

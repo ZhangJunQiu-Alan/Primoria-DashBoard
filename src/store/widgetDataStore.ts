@@ -21,6 +21,17 @@ export interface HabitItem {
   name: string
 }
 
+export interface LinedNotePage {
+  id: string
+  content: string
+}
+
+export interface LinedNotesDocument {
+  version: 1
+  activePageId: string
+  pages: LinedNotePage[]
+}
+
 export interface ScheduledTask {
   id: string
   text: string
@@ -33,6 +44,15 @@ export interface PomodoroData {
   totalSessions: number
   todaySessions: number
   lastSessionDate: string
+}
+
+export interface DailyBriefData {
+  date: string
+  summary: string
+  recommendation: string
+  generatedAt: string
+  calendarConnected: boolean
+  sourceFingerprint: string
 }
 
 interface WidgetDataState {
@@ -64,6 +84,16 @@ interface WidgetDataState {
   calendarEmbeds: Record<string, string>
   setCalendarEmbed: (widgetId: string, code: string) => void
 
+  // Notes — per widget instance
+  notesByWidget: Record<string, string>
+  setNote: (widgetId: string, content: string) => void
+  appendNote: (widgetId: string, content: string) => void
+
+  // Lined notes — per widget instance
+  linedNotesByWidget: Record<string, LinedNotesDocument>
+  setLinedNotesDocument: (widgetId: string, document: LinedNotesDocument) => void
+  appendLinedNote: (widgetId: string, content: string) => void
+
   // Scheduled Todo — per widget instance
   scheduledTasksByWidget: Record<string, ScheduledTask[]>
   addScheduledTask: (widgetId: string, text: string, dueDate: string | null) => void
@@ -87,11 +117,64 @@ interface WidgetDataState {
   // Pomodoro
   pomodoro: PomodoroData
   incrementPomodoro: () => void
+
+  // Daily Brief
+  dailyBriefsByDate: Record<string, DailyBriefData>
+  setDailyBrief: (brief: DailyBriefData) => void
+  removeDailyBrief: (date: string) => void
 }
 
 export const WIDGET_DATA_STORAGE_KEY = 'primoria-widget-data'
+export const LINED_NOTES_DOCUMENT_VERSION = 1
 const today = () => formatLocalDateKey()
 const makeId = () => `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+const makeLinedNotePageId = () => `lined-note-page-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+
+export function createLinedNotesDocument(initialContent = ''): LinedNotesDocument {
+  const firstPage = { id: makeLinedNotePageId(), content: initialContent }
+  return {
+    version: LINED_NOTES_DOCUMENT_VERSION,
+    activePageId: firstPage.id,
+    pages: [firstPage],
+  }
+}
+
+export function createBlankLinedNotePage(): LinedNotePage {
+  return { id: makeLinedNotePageId(), content: '' }
+}
+
+export function normalizeLinedNotesDocument(value: unknown): LinedNotesDocument {
+  if (typeof value === 'string') return createLinedNotesDocument(value)
+
+  if (!value || typeof value !== 'object') return createLinedNotesDocument()
+
+  const candidate = value as Partial<LinedNotesDocument>
+  const rawPages: unknown[] = Array.isArray(candidate.pages) ? candidate.pages : []
+  const pages = rawPages
+    .filter((page) => Boolean(page) && typeof page === 'object')
+    .map((page) => ({
+      id:
+        typeof (page as Partial<LinedNotePage>).id === 'string' &&
+        (page as Partial<LinedNotePage>).id?.trim()
+          ? (page as Partial<LinedNotePage>).id as string
+          : makeLinedNotePageId(),
+      content:
+        typeof (page as Partial<LinedNotePage>).content === 'string'
+          ? (page as Partial<LinedNotePage>).content as string
+          : '',
+    }))
+
+  const ensuredPages = pages.length > 0 ? pages : [createBlankLinedNotePage()]
+  const activePageId = ensuredPages.some((page) => page.id === candidate.activePageId)
+    ? (candidate.activePageId as string)
+    : ensuredPages[0].id
+
+  return {
+    version: LINED_NOTES_DOCUMENT_VERSION,
+    activePageId,
+    pages: ensuredPages,
+  }
+}
 
 const updateList = (
   map: Record<string, TodoItem[]>,
@@ -217,6 +300,55 @@ export const useWidgetDataStore = create<WidgetDataState>()(
       setCalendarEmbed: (widgetId, code) =>
         set((s) => ({ calendarEmbeds: { ...s.calendarEmbeds, [widgetId]: code } })),
 
+      notesByWidget: {},
+      setNote: (widgetId, content) =>
+        set((s) => ({ notesByWidget: { ...s.notesByWidget, [widgetId]: content } })),
+      appendNote: (widgetId, content) =>
+        set((s) => {
+          const current = s.notesByWidget[widgetId] ?? ''
+          const separator = current.trim() && content.trim() ? '\n\n' : ''
+          return {
+            notesByWidget: {
+              ...s.notesByWidget,
+              [widgetId]: `${current}${separator}${content}`,
+            },
+          }
+        }),
+
+      linedNotesByWidget: {},
+      setLinedNotesDocument: (widgetId, document) =>
+        set((s) => ({
+          linedNotesByWidget: {
+            ...s.linedNotesByWidget,
+            [widgetId]: normalizeLinedNotesDocument(document),
+          },
+        })),
+      appendLinedNote: (widgetId, content) =>
+        set((s) => {
+          const document = normalizeLinedNotesDocument(
+            s.linedNotesByWidget[widgetId] ?? createLinedNotesDocument()
+          )
+          const activePageId = document.activePageId
+          return {
+            linedNotesByWidget: {
+              ...s.linedNotesByWidget,
+              [widgetId]: {
+                ...document,
+                pages: document.pages.map((page) =>
+                  page.id === activePageId
+                    ? {
+                        ...page,
+                        content: page.content.trim()
+                          ? `${page.content}\n\n${content}`
+                          : content,
+                      }
+                    : page
+                ),
+              },
+            },
+          }
+        }),
+
       scheduledTasksByWidget: {},
       addScheduledTask: (widgetId, text, dueDate) =>
         set((s) => ({
@@ -332,6 +464,16 @@ export const useWidgetDataStore = create<WidgetDataState>()(
           pomodoro.lastSessionDate === todayStr ? pomodoro.todaySessions + 1 : 1
         set({ pomodoro: { totalSessions: pomodoro.totalSessions + 1, todaySessions, lastSessionDate: todayStr } })
       },
+
+      dailyBriefsByDate: {},
+      setDailyBrief: (brief) =>
+        set((s) => ({ dailyBriefsByDate: { ...s.dailyBriefsByDate, [brief.date]: brief } })),
+      removeDailyBrief: (date) =>
+        set((s) => {
+          const dailyBriefsByDate = { ...s.dailyBriefsByDate }
+          delete dailyBriefsByDate[date]
+          return { dailyBriefsByDate }
+        }),
     }),
     { name: WIDGET_DATA_STORAGE_KEY }
   )

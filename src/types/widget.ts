@@ -12,6 +12,7 @@ export type WidgetType =
   | 'music-player'
   | 'habits'
   | 'scheduled-todo'
+  | 'daily-brief'
 
 export interface WidgetMeta {
   type: WidgetType

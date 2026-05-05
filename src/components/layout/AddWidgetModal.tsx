@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react'
-import { X, Search, Clock, Link2, FileText, CheckSquare, Timer, CalendarDays, ListChecks, Disc3, Quote, CalendarClock } from 'lucide-react'
+import { X, Search, Clock, Link2, FileText, CheckSquare, Timer, CalendarDays, ListChecks, Disc3, Quote, CalendarClock, Sparkles } from 'lucide-react'
 import { useDashboardStore } from '@/store/dashboardStore'
 import type { WidgetType } from '@/types/widget'
 
@@ -23,6 +23,7 @@ const WIDGET_DEFS: WidgetDef[] = [
   { type: 'music-player', name: '网易云播放器', description: '黑胶风格的网易云音乐播放卡片', icon: Disc3, category: '娱乐' },
   { type: 'habits', name: '习惯打卡', description: '追踪每日习惯，查看近 7 天', icon: ListChecks, category: '效率' },
   { type: 'scheduled-todo', name: '日程任务', description: '横向日期时间轴，可拖拽任务吸附到不同日期', icon: CalendarClock, category: '效率' },
+  { type: 'daily-brief', name: '每日简报', description: '读取日程、待办、习惯和笔记生成当天建议', icon: Sparkles, category: 'AI' },
 ]
 
 interface Props {

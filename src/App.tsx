@@ -9,10 +9,13 @@ import { CloudSyncControl } from '@/components/cloud/CloudSyncControl'
 import { CloudSyncProvider } from '@/components/cloud/CloudSyncProvider'
 import { useMusicUploader } from '@/hooks/useMusicUploader'
 import { useUiVisible } from '@/hooks/useUiVisible'
+import { useGoogleCalendarTokenCapture } from '@/hooks/useGoogleCalendarTokenCapture'
 import { useWidgetDataStoreSync } from '@/hooks/useWidgetDataStoreSync'
 import { sweepExpiredAudio } from '@/lib/audioCache'
 import { ALLOWED_BACKGROUND_IMAGE_TYPES, MAX_BACKGROUND_IMAGE_BYTES } from '@/lib/cloudSnapshots'
+import { migrateLegacyNotesToWidgetStore } from '@/lib/notesMigration'
 import { useBackgroundStore } from '@/store/backgroundStore'
+import { useDashboardStore } from '@/store/dashboardStore'
 import { Toaster } from 'sonner'
 
 export default function App() {
@@ -27,6 +30,7 @@ function DashboardApp() {
   const [modalOpen, setModalOpen] = useState(false)
   const [aiOpen, setAiOpen] = useState(false)
   const [uiVisible, setUiVisible] = useUiVisible()
+  const widgets = useDashboardStore((s) => s.widgets)
   const backgroundImage = useBackgroundStore((s) => s.backgroundImage)
   const setBackgroundImage = useBackgroundStore((s) => s.setBackgroundImage)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -34,10 +38,15 @@ function DashboardApp() {
   const { uploading: musicUploading, handleFiles: handleMusicFiles } = useMusicUploader()
 
   useWidgetDataStoreSync()
+  useGoogleCalendarTokenCapture()
 
   useEffect(() => {
     void sweepExpiredAudio()
   }, [])
+
+  useEffect(() => {
+    migrateLegacyNotesToWidgetStore(widgets)
+  }, [widgets])
 
   function handleImageUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
