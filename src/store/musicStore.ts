@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { persist, createJSONStorage } from 'zustand/middleware'
+import { dropCachedAudio } from '@/lib/audioCache'
 import {
   computeUsageBytes,
   createSignedUrl,
@@ -94,6 +95,7 @@ export const useMusicStore = create<MusicState>()(
 
       remove: async (track) => {
         await deleteTrackRow(track)
+        void dropCachedAudio(track.audio_path)
         set((state) => {
           const nextCurrents = { ...state.currentTrackByWidget }
           for (const [widgetId, id] of Object.entries(nextCurrents)) {

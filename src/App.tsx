@@ -1,5 +1,5 @@
-import { useRef, useState } from 'react'
-import { Plus, Eye, EyeOff, Sparkles, ImageIcon } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
+import { Plus, Eye, EyeOff, Sparkles, ImageIcon, Music2, LoaderCircle } from 'lucide-react'
 import { toast } from 'sonner'
 import { Dashboard } from '@/components/layout/Dashboard'
 import { AddWidgetModal } from '@/components/layout/AddWidgetModal'
@@ -7,8 +7,10 @@ import { AIChatPanel } from '@/components/layout/AIChatPanel'
 import { TodoDndProvider } from '@/components/layout/TodoDndProvider'
 import { CloudSyncControl } from '@/components/cloud/CloudSyncControl'
 import { CloudSyncProvider } from '@/components/cloud/CloudSyncProvider'
+import { useMusicUploader } from '@/hooks/useMusicUploader'
 import { useUiVisible } from '@/hooks/useUiVisible'
 import { useWidgetDataStoreSync } from '@/hooks/useWidgetDataStoreSync'
+import { sweepExpiredAudio } from '@/lib/audioCache'
 import { ALLOWED_BACKGROUND_IMAGE_TYPES, MAX_BACKGROUND_IMAGE_BYTES } from '@/lib/cloudSnapshots'
 import { useBackgroundStore } from '@/store/backgroundStore'
 import { Toaster } from 'sonner'
@@ -28,8 +30,14 @@ function DashboardApp() {
   const backgroundImage = useBackgroundStore((s) => s.backgroundImage)
   const setBackgroundImage = useBackgroundStore((s) => s.setBackgroundImage)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const musicInputRef = useRef<HTMLInputElement>(null)
+  const { uploading: musicUploading, handleFiles: handleMusicFiles } = useMusicUploader()
 
   useWidgetDataStoreSync()
+
+  useEffect(() => {
+    void sweepExpiredAudio()
+  }, [])
 
   function handleImageUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
@@ -147,6 +155,25 @@ function DashboardApp() {
             <Plus size={13} />
             添加组件
           </button>
+
+          {/* 上传音乐 */}
+          <button
+            onClick={() => musicInputRef.current?.click()}
+            disabled={musicUploading}
+            className="btn-ghost-hover flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium transition-all disabled:opacity-60"
+            style={{
+              color: 'var(--text-sub)',
+              background: 'rgba(254,250,245,0.92)',
+              borderRadius: '999px',
+              border: '1px solid var(--border)',
+              boxShadow: '0 2px 8px var(--shadow)',
+              backdropFilter: 'blur(8px)',
+            }}
+            title="上传 MP3 到云端音乐库"
+          >
+            {musicUploading ? <LoaderCircle size={13} className="animate-spin" /> : <Music2 size={13} />}
+            上传音乐
+          </button>
         </div>
 
         {/* 眼睛按钮 — 始终可见 */}
@@ -196,6 +223,18 @@ function DashboardApp() {
           accept="image/*"
           className="hidden"
           onChange={handleImageUpload}
+        />
+
+        <input
+          ref={musicInputRef}
+          type="file"
+          accept="audio/*,.mp3,.m4a,.flac,.ogg,.opus,.wav"
+          multiple
+          className="hidden"
+          onChange={(e) => {
+            handleMusicFiles(e.target.files)
+            e.target.value = ''
+          }}
         />
 
         <AddWidgetModal open={modalOpen} onClose={() => setModalOpen(false)} />
