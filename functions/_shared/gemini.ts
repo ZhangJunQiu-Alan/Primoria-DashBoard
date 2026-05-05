@@ -31,7 +31,9 @@ interface GeminiResponse {
 }
 
 export const DASHBOARD_AGENT_SYSTEM_PROMPT = `
-你是 Primoria Dashboard 的 dashboard agent。你只能基于工具返回的 dashboard 数据回答，不要编造用户日程、待办、习惯或笔记。
+你是 Primoria Dashboard 的 dashboard agent。你只能基于工具返回的 dashboard 数据回答，绝不能凭记忆或常识回答用户日程、待办、习惯或笔记。
+关键规则：用户问任何与 dashboard 内容相关的问题（"我今天有什么任务"、"我有哪些习惯"、"我笔记里写过 X 吗"等），必须先调用对应的读工具（list_scheduled_tasks / list_todos / get_dashboard_overview / search_notes / list_calendar_events），看到返回再回答。哪怕你以为没有数据也要先调用工具确认。
+查询日程任务时，若用户没指定日期范围，优先用 list_scheduled_tasks 不带日期参数（拿全量）再过滤。注意 dueDate 可能为 null（未设置日期的任务），不要因为没匹配上 fromDate/toDate 就说"没有"。
 你可以读 dashboard，也可以准备写入动作；任何写入都必须先通过 write 类工具返回 pending actions，等待用户确认后由前端执行。
 当用户要求移动、新建、打卡、写笔记时，先选择最小影响范围。如果有多个同类 widget 且用户没有指定，优先使用当前 dashboard 中第一个对应 widget。
 回答使用简洁中文。读信息时给结论；准备写入时说明将要改什么。
@@ -89,6 +91,58 @@ export const DASHBOARD_TOOL_DECLARATIONS = [
         includeCompleted: { type: 'boolean', description: 'Defaults to false.' },
       },
       required: ['toDate'],
+    },
+  },
+  {
+    name: 'add_scheduled_task',
+    description: 'Prepare a pending action to add a new scheduled task. Does not write until user confirms.',
+    parameters: {
+      type: 'object',
+      properties: {
+        widgetId: { type: 'string', description: 'Scheduled todo widget id. Optional; first scheduled-todo widget is used.' },
+        text: { type: 'string', description: 'Task content.' },
+        dueDate: { type: 'string', description: 'YYYY-MM-DD due date. Optional.' },
+      },
+      required: ['text'],
+    },
+  },
+  {
+    name: 'toggle_scheduled_task',
+    description: 'Prepare a pending action to mark a scheduled task complete or incomplete.',
+    parameters: {
+      type: 'object',
+      properties: {
+        widgetId: { type: 'string', description: 'Optional scheduled todo widget id.' },
+        taskId: { type: 'string' },
+        completed: { type: 'boolean', description: 'Optional; defaults to flipping current state.' },
+      },
+      required: ['taskId'],
+    },
+  },
+  {
+    name: 'update_scheduled_task',
+    description: 'Prepare a pending action to edit a scheduled task text or due date.',
+    parameters: {
+      type: 'object',
+      properties: {
+        widgetId: { type: 'string', description: 'Optional scheduled todo widget id.' },
+        taskId: { type: 'string' },
+        text: { type: 'string' },
+        dueDate: { type: 'string', description: 'YYYY-MM-DD; pass empty string to clear.' },
+      },
+      required: ['taskId'],
+    },
+  },
+  {
+    name: 'remove_scheduled_task',
+    description: 'Prepare a pending action to delete a scheduled task.',
+    parameters: {
+      type: 'object',
+      properties: {
+        widgetId: { type: 'string', description: 'Optional scheduled todo widget id.' },
+        taskId: { type: 'string' },
+      },
+      required: ['taskId'],
     },
   },
   {

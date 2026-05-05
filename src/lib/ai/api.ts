@@ -1,4 +1,5 @@
 import { supabase, type Session } from '@/lib/supabase'
+import { formatLocalDateKey } from '@/lib/date'
 import type { CalendarEvent, DailyBriefResult, GeminiContent } from '@/lib/ai/types'
 
 type OAuthSession = Session & {
@@ -50,7 +51,7 @@ async function authedFetch(path: string, init: RequestInit = {}) {
 export async function sendAgentTurn({ messages }: { messages: GeminiContent[]; toolResults?: unknown[] }) {
   return authedFetch('/api/ai/chat', {
     method: 'POST',
-    body: JSON.stringify({ contents: messages }),
+    body: JSON.stringify({ contents: messages, clientDate: formatLocalDateKey() }),
   }) as Promise<{
     modelContent: GeminiContent
     text: string

@@ -47,6 +47,30 @@ export type PendingAction =
       toDate: string
     })
   | (PendingActionBase & {
+      type: 'addScheduledTask'
+      widgetId: string | null
+      text: string
+      dueDate: string | null
+    })
+  | (PendingActionBase & {
+      type: 'toggleScheduledTask'
+      widgetId: string
+      taskId: string
+      completed: boolean
+    })
+  | (PendingActionBase & {
+      type: 'updateScheduledTask'
+      widgetId: string
+      taskId: string
+      text?: string
+      dueDate?: string | null
+    })
+  | (PendingActionBase & {
+      type: 'removeScheduledTask'
+      widgetId: string
+      taskId: string
+    })
+  | (PendingActionBase & {
       type: 'createHabit'
       widgetId: string | null
       name: string

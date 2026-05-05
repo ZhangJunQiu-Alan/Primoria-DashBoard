@@ -166,6 +166,109 @@ function prepareMoveScheduledTasks(args: Record<string, unknown>): ToolResult {
   }
 }
 
+function findScheduledTask(taskId: string, requestedWidgetId?: string | null) {
+  const scheduled = useWidgetDataStore.getState().scheduledTasksByWidget
+  if (requestedWidgetId) {
+    const task = (scheduled[requestedWidgetId] ?? []).find((t) => t.id === taskId)
+    if (task) return { widgetId: requestedWidgetId, task }
+  }
+  for (const [widgetId, tasks] of Object.entries(scheduled)) {
+    const task = tasks.find((t) => t.id === taskId)
+    if (task) return { widgetId, task }
+  }
+  return null
+}
+
+function prepareAddScheduledTask(args: Record<string, unknown>): ToolResult {
+  const text = getString(args, 'text')
+  if (!text) return { pendingActions: [], response: { error: '任务内容不能为空' } }
+  const dueDateRaw = args.dueDate
+  const dueDate =
+    typeof dueDateRaw === 'string' && dueDateRaw.trim() ? dueDateRaw.trim() : null
+
+  const widgetId = findWidget('scheduled-todo', getString(args, 'widgetId'))
+  const action: PendingAction = {
+    dueDate,
+    id: makeActionId('add-scheduled'),
+    label: widgetId
+      ? `在 ${getWidgetTitle(widgetId)} 新建日程任务：${text}${dueDate ? `（${dueDate}）` : ''}`
+      : `添加日程任务组件并新建：${text}${dueDate ? `（${dueDate}）` : ''}`,
+    text,
+    type: 'addScheduledTask',
+    widgetId,
+  }
+  return { pendingActions: [action], response: { pending: true, actions: [action] } }
+}
+
+function prepareToggleScheduledTask(args: Record<string, unknown>): ToolResult {
+  const taskId = getString(args, 'taskId')
+  if (!taskId) return { pendingActions: [], response: { error: 'taskId 必填' } }
+  const found = findScheduledTask(taskId, getString(args, 'widgetId'))
+  if (!found) return { pendingActions: [], response: { error: '未找到该任务' } }
+
+  const completed =
+    typeof args.completed === 'boolean' ? args.completed : !found.task.completed
+  const action: PendingAction = {
+    completed,
+    id: makeActionId('toggle-scheduled'),
+    label: `${completed ? '完成' : '取消完成'}日程任务：${found.task.text}`,
+    taskId,
+    type: 'toggleScheduledTask',
+    widgetId: found.widgetId,
+  }
+  return { pendingActions: [action], response: { pending: true, actions: [action] } }
+}
+
+function prepareUpdateScheduledTask(args: Record<string, unknown>): ToolResult {
+  const taskId = getString(args, 'taskId')
+  if (!taskId) return { pendingActions: [], response: { error: 'taskId 必填' } }
+  const found = findScheduledTask(taskId, getString(args, 'widgetId'))
+  if (!found) return { pendingActions: [], response: { error: '未找到该任务' } }
+
+  const text = getString(args, 'text') ?? undefined
+  const hasDueDate = Object.prototype.hasOwnProperty.call(args, 'dueDate')
+  const rawDueDate = args.dueDate
+  const dueDate = hasDueDate
+    ? typeof rawDueDate === 'string' && rawDueDate.trim()
+      ? rawDueDate.trim()
+      : null
+    : undefined
+
+  if (text === undefined && dueDate === undefined) {
+    return { pendingActions: [], response: { error: '至少提供 text 或 dueDate 之一' } }
+  }
+
+  const parts: string[] = []
+  if (text !== undefined) parts.push(`内容改为「${text}」`)
+  if (dueDate !== undefined) parts.push(`日期改为 ${dueDate ?? '无'}`)
+  const action: PendingAction = {
+    dueDate,
+    id: makeActionId('update-scheduled'),
+    label: `编辑日程任务「${found.task.text}」：${parts.join('，')}`,
+    taskId,
+    text,
+    type: 'updateScheduledTask',
+    widgetId: found.widgetId,
+  }
+  return { pendingActions: [action], response: { pending: true, actions: [action] } }
+}
+
+function prepareRemoveScheduledTask(args: Record<string, unknown>): ToolResult {
+  const taskId = getString(args, 'taskId')
+  if (!taskId) return { pendingActions: [], response: { error: 'taskId 必填' } }
+  const found = findScheduledTask(taskId, getString(args, 'widgetId'))
+  if (!found) return { pendingActions: [], response: { error: '未找到该任务' } }
+
+  const action: PendingAction = {
+    id: makeActionId('remove-scheduled'),
+    label: `删除日程任务：${found.task.text}`,
+    taskId,
+    type: 'removeScheduledTask',
+    widgetId: found.widgetId,
+  }
+  return { pendingActions: [action], response: { pending: true, actions: [action] } }
+}
+
 function prepareCreateHabit(args: Record<string, unknown>): ToolResult {
   const name = getString(args, 'name')
   if (!name) return { pendingActions: [], response: { error: '习惯名称不能为空' } }
@@ -320,6 +423,14 @@ export async function executeDashboardTool(call: GeminiFunctionCall): Promise<To
       return listScheduledTasks(args)
     case 'move_scheduled_tasks':
       return prepareMoveScheduledTasks(args)
+    case 'add_scheduled_task':
+      return prepareAddScheduledTask(args)
+    case 'toggle_scheduled_task':
+      return prepareToggleScheduledTask(args)
+    case 'update_scheduled_task':
+      return prepareUpdateScheduledTask(args)
+    case 'remove_scheduled_task':
+      return prepareRemoveScheduledTask(args)
     case 'create_habit':
       return prepareCreateHabit(args)
     case 'update_habit_log':
@@ -346,6 +457,42 @@ export function applyPendingActions(actions: PendingAction[]) {
       for (const taskId of action.taskIds) {
         data.moveScheduledTaskToDate(action.widgetId, taskId, action.toDate)
       }
+      continue
+    }
+
+    if (action.type === 'addScheduledTask') {
+      let widgetId = action.widgetId
+      if (!widgetId) {
+        const before = new Set(useDashboardStore.getState().widgets.map((widget) => widget.id))
+        dashboard.addWidget('scheduled-todo')
+        widgetId =
+          useDashboardStore.getState().widgets.find(
+            (widget) => widget.type === 'scheduled-todo' && !before.has(widget.id)
+          )?.id ?? findWidget('scheduled-todo')
+      }
+      if (widgetId) data.addScheduledTask(widgetId, action.text, action.dueDate)
+      continue
+    }
+
+    if (action.type === 'toggleScheduledTask') {
+      const current = (useWidgetDataStore.getState().scheduledTasksByWidget[action.widgetId] ?? [])
+        .find((t) => t.id === action.taskId)
+      if (current && current.completed !== action.completed) {
+        data.toggleScheduledTask(action.widgetId, action.taskId)
+      }
+      continue
+    }
+
+    if (action.type === 'updateScheduledTask') {
+      const updates: Partial<{ text: string; dueDate: string | null }> = {}
+      if (action.text !== undefined) updates.text = action.text
+      if (action.dueDate !== undefined) updates.dueDate = action.dueDate
+      data.updateScheduledTask(action.widgetId, action.taskId, updates)
+      continue
+    }
+
+    if (action.type === 'removeScheduledTask') {
+      data.removeScheduledTask(action.widgetId, action.taskId)
       continue
     }
 
