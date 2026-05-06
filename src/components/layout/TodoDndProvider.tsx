@@ -128,7 +128,7 @@ export function TodoDndProvider({ children }: { children: React.ReactNode }) {
               style={{
                 padding: '6px 10px',
                 background: 'var(--bg-card)',
-                border: '1.5px solid var(--primary-light)',
+                border: 'none',
                 borderRadius: '8px',
                 fontSize: '15px',
                 color: 'var(--text)',

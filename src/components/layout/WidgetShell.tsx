@@ -78,13 +78,73 @@ export function WidgetShell({ type, widgetId, onRemove, showHeader }: WidgetShel
 
   const isClock = type === 'clock'
   const isFocusJourney = type === 'focus-journey'
-  const isTransparent = isClock || isFocusJourney
+  const isScheduledTodo = type === 'scheduled-todo'
+  const isTransparent = isClock || isFocusJourney || isScheduledTodo
+  const showStandardHeader = showHeader && !isScheduledTodo
   const headerOnDark = isFocusJourney
   const headerTextColor = headerOnDark ? 'rgba(232, 238, 245, 0.55)' : 'var(--text-muted)'
 
+  if (isScheduledTodo) {
+    return (
+      <div className="group relative h-full">
+        {showHeader && (
+          <>
+            <div className="drag-handle absolute left-0 right-0 top-0 z-10 h-7 cursor-grab active:cursor-grabbing" />
+            <div className="absolute right-2 top-2 z-20 flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+              {editing && (
+                <input
+                  ref={inputRef}
+                  value={draft}
+                  onChange={(e) => setDraft(e.target.value)}
+                  onBlur={commitEdit}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') commitEdit()
+                    if (e.key === 'Escape') setEditing(false)
+                  }}
+                  onMouseDown={(e) => e.stopPropagation()}
+                  className="outline-none"
+                  style={{
+                    width: '92px',
+                    border: '1px solid rgba(221,211,195,0.75)',
+                    borderRadius: '8px',
+                    background: 'rgba(255,255,255,0.92)',
+                    color: 'var(--text)',
+                    fontSize: '11px',
+                    padding: '3px 6px',
+                  }}
+                />
+              )}
+              <button
+                onMouseDown={(e) => e.stopPropagation()}
+                onClick={startEdit}
+                className="btn-icon-hover rounded-lg p-1"
+                style={{ color: 'var(--text-muted)', background: 'rgba(255,255,255,0.82)' }}
+                title="重命名"
+              >
+                <Pencil size={11} />
+              </button>
+              <button
+                onMouseDown={(e) => e.stopPropagation()}
+                onClick={onRemove}
+                className="btn-icon-hover rounded-lg p-1"
+                style={{ color: 'var(--text-muted)', background: 'rgba(255,255,255,0.82)' }}
+                title="移除组件"
+              >
+                <X size={12} />
+              </button>
+            </div>
+          </>
+        )}
+        <div className="h-full overflow-hidden">
+          <ScheduledTodoWidget widgetId={widgetId} />
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className={`widget-card h-full flex flex-col${isTransparent ? ' widget-transparent' : ''}`}>
-      {showHeader && (
+      {showStandardHeader && (
         <div
           className="drag-handle flex items-center px-4 py-2.5 cursor-grab active:cursor-grabbing select-none group/header"
           style={{

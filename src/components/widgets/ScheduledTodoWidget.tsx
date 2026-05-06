@@ -390,7 +390,6 @@ interface TaskCardProps {
   onEditCommit: () => void
   onEditCancel: () => void
   onDelete: () => void
-  onDateClick: (anchor: HTMLElement) => void
 }
 
 function TaskCard({
@@ -405,7 +404,6 @@ function TaskCard({
   onEditCommit,
   onEditCancel,
   onDelete,
-  onDateClick,
 }: TaskCardProps) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: `scheduled:${widgetId}:${task.id}`,
@@ -415,39 +413,31 @@ function TaskCard({
   const canDrag = !isEditing && !task.completed
 
   const delayCount = getDelayCount(task, today)
-  const delayLabel =
-    delayCount > 0 ? `拖延${delayCount >= 3 ? '3+' : delayCount}次` : null
-
   const palette = task.completed
     ? {
-        border: 'rgba(221,211,195,0.75)',
         background: 'rgba(247,243,236,0.78)',
         text: 'var(--text)',
         action: 'var(--text-muted)',
       }
     : delayCount >= 3
       ? {
-          border: '#201616',
           background: '#201616',
           text: '#FEFAF5',
           action: 'rgba(254,250,245,0.76)',
         }
       : delayCount === 2
         ? {
-            border: 'rgba(129,38,38,0.95)',
             background: 'rgba(124,29,29,0.16)',
             text: '#7C1D1D',
             action: '#9A4D4D',
           }
         : delayCount === 1
           ? {
-              border: 'rgba(196,122,122,0.95)',
               background: 'rgba(196,122,122,0.12)',
               text: '#AF5656',
               action: '#C47A7A',
             }
           : {
-              border: 'rgba(221,211,195,0.95)',
               background: 'rgba(254,250,245,0.96)',
               text: 'var(--text)',
               action: 'var(--text-muted)',
@@ -463,9 +453,9 @@ function TaskCard({
         opacity: isDragging ? 0.35 : task.completed ? 0.56 : 1,
         padding: '8px 9px',
         borderRadius: '14px',
-        border: `1px solid ${palette.border}`,
+        border: 'none',
         background: palette.background,
-        boxShadow: task.completed ? 'none' : '0 4px 14px rgba(90,70,50,0.05)',
+        boxShadow: 'none',
       }}
     >
       <div style={{ display: 'flex', alignItems: 'flex-start', gap: '7px' }}>
@@ -527,7 +517,7 @@ function TaskCard({
                 border: 'none',
                 outline: 'none',
                 borderBottom: '1px solid var(--primary-light)',
-                fontSize: '13px',
+                fontSize: '11px',
                 lineHeight: 1.45,
                 color: palette.text,
                 fontFamily: "'DM Sans', sans-serif",
@@ -544,7 +534,7 @@ function TaskCard({
                 background: 'none',
                 border: 'none',
                 textAlign: 'left',
-                fontSize: '13px',
+                fontSize: '11px',
                 lineHeight: 1.45,
                 color: palette.text,
                 textDecoration: task.completed ? 'line-through' : 'none',
@@ -553,27 +543,6 @@ function TaskCard({
               }}
             >
               {task.text}
-            </button>
-          )}
-
-          {delayLabel && (
-            <button
-              onClick={(event) => onDateClick(event.currentTarget)}
-              style={{
-                marginTop: '6px',
-                padding: '2px 7px',
-                borderRadius: '999px',
-                cursor: 'pointer',
-                border: `1px solid ${palette.border}`,
-                background: delayCount >= 3 ? 'rgba(254,250,245,0.12)' : 'rgba(255,255,255,0.45)',
-                color: palette.text,
-                fontSize: '10px',
-                lineHeight: 1.2,
-                whiteSpace: 'nowrap',
-              }}
-              title="修改日期"
-            >
-              {delayLabel}
             </button>
           )}
         </div>
@@ -621,7 +590,6 @@ interface TimelineColumnProps {
   onEditCommit: () => void
   onEditCancel: () => void
   onDeleteTask: (taskId: string) => void
-  onDateClick: (taskId: string, anchor: HTMLElement) => void
 }
 
 function TimelineColumn({
@@ -644,7 +612,6 @@ function TimelineColumn({
   onEditCommit,
   onEditCancel,
   onDeleteTask,
-  onDateClick,
 }: TimelineColumnProps) {
   const columnDate = dueDate ?? today
   const orderedTasks = useMemo(() => orderTasks(tasks, columnDate, today), [columnDate, tasks, today])
@@ -775,7 +742,6 @@ function TimelineColumn({
               onEditCommit={onEditCommit}
               onEditCancel={onEditCancel}
               onDelete={() => onDeleteTask(task.id)}
-              onDateClick={(anchor) => onDateClick(task.id, anchor)}
             />
           ))
         )}
@@ -1023,7 +989,6 @@ export function ScheduledTodoWidget({ widgetId }: { widgetId: string }) {
                   onEditCommit={commitEdit}
                   onEditCancel={() => setEditingId(null)}
                   onDeleteTask={(taskId) => removeTask(widgetId, taskId)}
-                  onDateClick={(taskId, anchor) => setTaskPicker({ id: taskId, el: anchor })}
                 />
               )
             })}
