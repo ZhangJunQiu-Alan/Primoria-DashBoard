@@ -7,7 +7,7 @@ export type WidgetType =
   | 'notes'
   | 'lined-notes'
   | 'todo'
-  | 'pomodoro'
+  | 'focus-journey'
   | 'google-calendar'
   | 'music-player'
   | 'habits'

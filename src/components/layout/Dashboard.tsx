@@ -6,9 +6,17 @@ import {
   useContainerWidth,
   useResponsiveLayout,
 } from 'react-grid-layout'
+import { aspectRatio } from 'react-grid-layout/core'
 import { useDashboardStore } from '@/store/dashboardStore'
 import { WidgetShell } from './WidgetShell'
-import type { DashboardBreakpoint, LayoutItem, ResponsiveLayouts } from '@/types/widget'
+import type { DashboardBreakpoint, LayoutItem, ResponsiveLayouts, WidgetType } from '@/types/widget'
+
+// Per-widget grid constraints injected at render time. Constraint instances must be
+// stable across renders — react-grid-layout uses reference equality.
+const FOCUS_JOURNEY_CONSTRAINTS = [aspectRatio(9 / 16)]
+const TYPE_CONSTRAINTS: Partial<Record<WidgetType, ReturnType<typeof aspectRatio>[]>> = {
+  'focus-journey': FOCUS_JOURNEY_CONSTRAINTS,
+}
 
 const BREAKPOINTS: Record<DashboardBreakpoint, number> = { lg: 1200, md: 996, sm: 768 }
 const COLS: Record<DashboardBreakpoint, number> = { lg: 12, md: 10, sm: 6 }
@@ -104,6 +112,20 @@ export function Dashboard({ showWidgetHeaders }: DashboardProps) {
     compactor: noCompactor,
   })
 
+  const widgetTypeById = useMemo(
+    () => new Map(widgets.map((w) => [w.id, w.type])),
+    [widgets]
+  )
+  const enrichedLayout = useMemo(
+    () =>
+      activeLayout.map((item) => {
+        const type = widgetTypeById.get(item.i)
+        const constraints = type ? TYPE_CONSTRAINTS[type] : undefined
+        return constraints ? { ...item, constraints } : item
+      }),
+    [activeLayout, widgetTypeById]
+  )
+
   // Layouts for breakpoints the user hasn't customized are derived on the fly
   // by buildResponsiveLayouts. We deliberately do NOT auto-persist that derivation —
   // doing so would freeze the generated layout, blocking later edits at lg from
@@ -117,7 +139,7 @@ export function Dashboard({ showWidgetHeaders }: DashboardProps) {
     <div ref={containerRef as React.RefObject<HTMLDivElement>}>
       <GridLayout
         width={width}
-        layout={activeLayout}
+        layout={enrichedLayout}
         dragConfig={{ handle: '.drag-handle' }}
         onDragStop={(currentLayout) => commitLayout(currentLayout)}
         onResizeStop={(currentLayout) => commitLayout(currentLayout)}

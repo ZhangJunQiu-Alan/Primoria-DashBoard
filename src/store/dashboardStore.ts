@@ -15,13 +15,18 @@ const VALID_TYPES: WidgetType[] = [
   'notes',
   'lined-notes',
   'todo',
-  'pomodoro',
+  'focus-journey',
   'google-calendar',
   'music-player',
   'habits',
   'scheduled-todo',
   'daily-brief',
 ]
+
+// Legacy types are still recognized when migrating persisted layouts; map them to current ones.
+const LEGACY_TYPE_REPLACEMENTS: Record<string, WidgetType> = {
+  pomodoro: 'focus-journey',
+}
 
 const DASHBOARD_BREAKPOINTS: DashboardBreakpoint[] = ['lg', 'md', 'sm']
 const DASHBOARD_COLS: Record<DashboardBreakpoint, number> = { lg: 12, md: 10, sm: 6 }
@@ -47,7 +52,8 @@ const DEFAULT_SIZES: Record<WidgetType, { w: number; h: number; minW: number; mi
   notes: { w: 4, h: 4, minW: 2, minH: 3 },
   'lined-notes': { w: 4, h: 5, minW: 2, minH: 3 },
   todo: { w: 3, h: 4, minW: 2, minH: 3 },
-  pomodoro: { w: 3, h: 3, minW: 2, minH: 3 },
+  // 9:16 phone aspect; widget aspect-locked via aspectRatio constraint in Dashboard.tsx
+  'focus-journey': { w: 3, h: 6, minW: 3, minH: 5 },
   'google-calendar': { w: 4, h: 5, minW: 3, minH: 3 },
   'music-player': { w: 4, h: 4, minW: 2, minH: 2 },
   habits: { w: 5, h: 4, minW: 3, minH: 3 },
@@ -203,7 +209,7 @@ export const useDashboardStore = create<DashboardState>()(
     }),
     {
       name: 'primoria-dashboard',
-      version: 6,
+      version: 7,
       storage: {
         getItem: (key) => {
           try { return JSON.parse(localStorage.getItem(key) ?? 'null') } catch { return null }
@@ -221,7 +227,11 @@ export const useDashboardStore = create<DashboardState>()(
           layout?: LayoutItem[]
         }
 
-        const validWidgets = (state.widgets ?? []).filter((widget) =>
+        const migratedWidgets = (state.widgets ?? []).map((widget) => {
+          const replacement = LEGACY_TYPE_REPLACEMENTS[widget.type as string]
+          return replacement ? { ...widget, type: replacement } : widget
+        })
+        const validWidgets = migratedWidgets.filter((widget) =>
           VALID_TYPES.includes(widget.type as WidgetType)
         )
         const validIds = new Set(validWidgets.map((widget) => widget.id))

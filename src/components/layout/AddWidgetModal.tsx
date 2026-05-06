@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react'
-import { X, Search, Clock, Link2, FileText, CheckSquare, Timer, CalendarDays, ListChecks, Disc3, Quote, CalendarClock, Sparkles } from 'lucide-react'
+import { X, Search, Clock, Link2, FileText, CheckSquare, Mountain, CalendarDays, ListChecks, Disc3, Quote, CalendarClock, Sparkles } from 'lucide-react'
 import { useDashboardStore } from '@/store/dashboardStore'
 import type { WidgetType } from '@/types/widget'
 
@@ -18,7 +18,7 @@ const WIDGET_DEFS: WidgetDef[] = [
   { type: 'notes', name: '便签', description: '随手记录想法', icon: FileText, category: '效率' },
   { type: 'lined-notes', name: '格纸笔记', description: '带横线格纸风格的笔记', icon: FileText, category: '效率' },
   { type: 'todo', name: '待办事项', description: '管理每日任务', icon: CheckSquare, category: '效率' },
-  { type: 'pomodoro', name: '番茄钟', description: '专注计时，劳逸结合', icon: Timer, category: '效率' },
+  { type: 'focus-journey', name: '番茄钟', description: '徒步登山式专注：累计 20 小时登顶一次', icon: Mountain, category: '效率' },
   { type: 'google-calendar', name: 'Google 日历', description: '嵌入 Google Calendar 日历', icon: CalendarDays, category: '效率' },
   { type: 'music-player', name: '网易云播放器', description: '黑胶风格的网易云音乐播放卡片', icon: Disc3, category: '娱乐' },
   { type: 'habits', name: '习惯打卡', description: '追踪每日习惯，查看近 7 天', icon: ListChecks, category: '效率' },

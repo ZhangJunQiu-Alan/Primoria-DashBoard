@@ -20,7 +20,7 @@ const TITLE_BY_TYPE: Record<WidgetType, string> = {
   motto: '格言',
   'music-player': '网易云播放器',
   notes: '便签',
-  pomodoro: '番茄钟',
+  'focus-journey': '番茄钟',
   'quick-links': '快速链接',
   'scheduled-todo': '日程任务',
   todo: '待办事项',

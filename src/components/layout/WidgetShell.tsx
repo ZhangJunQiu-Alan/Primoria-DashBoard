@@ -8,7 +8,7 @@ import { MottoWidget } from '@/components/widgets/MottoWidget'
 import { NotesWidget } from '@/components/widgets/NotesWidget'
 import { LinedNotesWidget } from '@/components/widgets/LinedNotesWidget'
 import { TodoWidget } from '@/components/widgets/TodoWidget'
-import { PomodoroWidget } from '@/components/widgets/PomodoroWidget'
+import { FocusJourneyWidget } from '@/components/widgets/FocusJourneyWidget'
 import { GoogleCalendarWidget } from '@/components/widgets/GoogleCalendarWidget'
 import { HabitWidget } from '@/components/widgets/HabitWidget'
 import { MusicPlayerWidget } from '@/components/widgets/MusicPlayerWidget'
@@ -22,7 +22,7 @@ const DEFAULT_TITLES: Record<WidgetType, string> = {
   notes: '便签',
   'lined-notes': '格纸笔记',
   todo: '待办事项',
-  pomodoro: '番茄钟',
+  'focus-journey': '番茄钟',
   'google-calendar': 'Google 日历',
   'music-player': '网易云播放器',
   'habits': '习惯打卡',
@@ -66,7 +66,7 @@ export function WidgetShell({ type, widgetId, onRemove, showHeader }: WidgetShel
       case 'notes': return <NotesWidget widgetId={widgetId} />
       case 'lined-notes': return <LinedNotesWidget widgetId={widgetId} />
       case 'todo': return <TodoWidget widgetId={widgetId} />
-      case 'pomodoro': return <PomodoroWidget />
+      case 'focus-journey': return <FocusJourneyWidget />
       case 'google-calendar': return <GoogleCalendarWidget widgetId={widgetId} />
       case 'music-player': return <MusicPlayerWidget widgetId={widgetId} />
       case 'habits': return <HabitWidget widgetId={widgetId} />
@@ -76,16 +76,27 @@ export function WidgetShell({ type, widgetId, onRemove, showHeader }: WidgetShel
     }
   }
 
+  const isClock = type === 'clock'
+  const isFocusJourney = type === 'focus-journey'
+  const isTransparent = isClock || isFocusJourney
+  const headerOnDark = isFocusJourney
+  const headerTextColor = headerOnDark ? 'rgba(232, 238, 245, 0.55)' : 'var(--text-muted)'
+
   return (
-    <div className={`widget-card h-full flex flex-col${type === 'clock' ? ' widget-transparent' : ''}`}>
+    <div className={`widget-card h-full flex flex-col${isTransparent ? ' widget-transparent' : ''}`}>
       {showHeader && (
         <div
           className="drag-handle flex items-center px-4 py-2.5 cursor-grab active:cursor-grabbing select-none group/header"
           style={{
-            borderBottom: '1px solid var(--border)',
-            // Clock card is transparent, so give the header its own background
-            ...(type === 'clock' ? {
+            borderBottom: headerOnDark
+              ? '1px solid rgba(168, 200, 230, 0.12)'
+              : '1px solid var(--border)',
+            ...(isClock ? {
               background: 'var(--bg-card)',
+              borderRadius: 'var(--r-lg) var(--r-lg) 0 0',
+            } : {}),
+            ...(isFocusJourney ? {
+              background: '#0E2A4A',
               borderRadius: 'var(--r-lg) var(--r-lg) 0 0',
             } : {}),
           }}
@@ -124,7 +135,7 @@ export function WidgetShell({ type, widgetId, onRemove, showHeader }: WidgetShel
                 fontWeight: 600,
                 letterSpacing: '0.14em',
                 textTransform: 'uppercase',
-                color: 'var(--text-muted)',
+                color: headerTextColor,
                 cursor: 'default',
               }}
             >
@@ -136,7 +147,7 @@ export function WidgetShell({ type, widgetId, onRemove, showHeader }: WidgetShel
             onMouseDown={(e) => e.stopPropagation()}
             onClick={startEdit}
             className="btn-icon-hover opacity-0 group-hover/header:opacity-100 p-1 rounded-lg"
-            style={{ color: 'var(--text-muted)' }}
+            style={{ color: headerTextColor }}
             title="重命名"
           >
             <Pencil size={11} />
@@ -173,7 +184,7 @@ export function WidgetShell({ type, widgetId, onRemove, showHeader }: WidgetShel
             onMouseDown={(e) => e.stopPropagation()}
             onClick={onRemove}
             className="btn-icon-hover opacity-0 group-hover/header:opacity-100 p-1 rounded-lg"
-            style={{ color: 'var(--text-muted)' }}
+            style={{ color: headerTextColor }}
             title="移除组件"
           >
             <X size={12} />
@@ -185,7 +196,7 @@ export function WidgetShell({ type, widgetId, onRemove, showHeader }: WidgetShel
         <div className="drag-handle absolute inset-0 z-0 cursor-grab active:cursor-grabbing" />
       )}
 
-      <div className="widget-content flex-1 overflow-hidden p-3">
+      <div className={`widget-content flex-1 overflow-hidden${isFocusJourney ? '' : ' p-3'}`}>
         {renderContent()}
       </div>
 

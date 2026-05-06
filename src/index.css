@@ -225,3 +225,146 @@ body::before {
     animation: none;
   }
 }
+
+/* === Focus Journey (旅程式番茄钟) ============================== */
+
+.focus-journey {
+  --fj-bg: #0E2A4A;
+  --fj-bg-alt: #1A3A5C;
+  --fj-accent: #3B7BB8;
+  --fj-accent-light: rgba(168, 200, 230, 0.55);
+  --fj-text: #E8EEF5;
+  --fj-text-muted: #8FA8C0;
+  --fj-disabled-bg: #3A4D63;
+  --fj-disabled-text: #7A8A9C;
+
+  position: relative;
+  width: 100%;
+  height: 100%;
+  background: var(--fj-bg);
+  overflow: hidden;
+  color: var(--fj-text);
+  font-family: 'DM Sans', sans-serif;
+  user-select: none;
+}
+
+.fj-pill:hover {
+  background: rgba(168, 200, 230, 0.18) !important;
+  border-color: rgba(168, 200, 230, 0.4) !important;
+}
+
+/* Pulsing focus button (IDLE / SETUP) */
+.fj-pulse-btn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9999px;
+  background: var(--fj-accent);
+  color: #fff;
+  font-family: 'Cormorant Garamond', serif;
+  cursor: pointer;
+  border: none;
+  transition: background 0.2s ease;
+}
+
+.fj-pulse-btn:hover:not(:disabled) {
+  background: #4a8ec6;
+}
+
+.fj-pulse-btn:disabled {
+  background: var(--fj-disabled-bg);
+  color: var(--fj-disabled-text);
+  cursor: not-allowed;
+}
+
+.fj-pulse-btn::before {
+  content: '';
+  position: absolute;
+  inset: -8px;
+  border-radius: 9999px;
+  border: 2px solid var(--fj-accent-light);
+  animation: fj-pulse 2s ease-out infinite;
+  pointer-events: none;
+}
+
+.fj-pulse-btn:disabled::before {
+  display: none;
+}
+
+@keyframes fj-pulse {
+  0%   { transform: scale(1);    opacity: 0.5; }
+  100% { transform: scale(1.18); opacity: 0; }
+}
+
+/* Blinking text (RESTING focus countdown) */
+.fj-blink {
+  animation: fj-blink-anim 1.5s ease-in-out infinite alternate;
+}
+
+@keyframes fj-blink-anim {
+  from { opacity: 1; }
+  to   { opacity: 0.4; }
+}
+
+/* Parallax drift for placeholder bands */
+@keyframes fj-drift {
+  from { transform: translate3d(0, 0, 0); }
+  to   { transform: translate3d(-50%, 0, 0); }
+}
+
+.fj-drift-far    { animation: fj-drift 60s linear infinite; }
+.fj-drift-mid    { animation: fj-drift 30s linear infinite; }
+.fj-drift-front  { animation: fj-drift 12s linear infinite; }
+
+/* Campfire gentle flicker (RESTING) */
+@keyframes fj-flicker {
+  0%, 100% { transform: scale(1);    opacity: 1;    filter: drop-shadow(0 6px 10px rgba(255, 140, 50, 0.35)); }
+  50%      { transform: scale(1.03); opacity: 0.95; filter: drop-shadow(0 6px 14px rgba(255, 160, 60, 0.5)); }
+}
+
+.fj-fire {
+  animation: fj-flicker 1.3s ease-in-out infinite;
+  transform-origin: bottom center;
+}
+
+/* Character bob (FOCUSING / RESTING) */
+@keyframes fj-bob-anim {
+  0%, 100% { transform: translateX(-50%) translateY(0); }
+  50%      { transform: translateX(-50%) translateY(-4px); }
+}
+
+.fj-bob {
+  animation: fj-bob-anim 2.4s ease-in-out infinite;
+}
+
+/* Slow Ken Burns zoom (FOCUSING) — adds subtle "in motion" feel without
+   needing a tileable forest texture. */
+@keyframes fj-ken-burns {
+  0%   { transform: scale(1.05) translateX(0); }
+  50%  { transform: scale(1.1)  translateX(-1.5%); }
+  100% { transform: scale(1.05) translateX(0); }
+}
+
+.fj-ken-burns {
+  animation: fj-ken-burns 24s ease-in-out infinite;
+  transform-origin: center 60%;
+}
+
+/* Long-press progress ring */
+.fj-press-ring {
+  transition: stroke-dashoffset 3s linear;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fj-pulse-btn::before,
+  .fj-blink,
+  .fj-drift-far,
+  .fj-drift-mid,
+  .fj-drift-front,
+  .fj-fire,
+  .fj-bob,
+  .fj-ken-burns {
+    animation: none;
+  }
+}
