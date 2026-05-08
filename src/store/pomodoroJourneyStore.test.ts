@@ -198,7 +198,7 @@ describe('store · reconcile (refresh / wake recovery)', () => {
   })
 
   // B6
-  it('B6: FOCUSING reconcile past planned end auto-completes and commits', () => {
+  it('B6: FOCUSING reconcile past planned end enters COMPLETED so alerts can run', () => {
     seedFocusing({
       plannedSec: 1500,
       currentRunStartedAt: T0,
@@ -206,7 +206,15 @@ describe('store · reconcile (refresh / wake recovery)', () => {
     })
     const { reconcile } = usePomodoroJourneyStore.getState()
     const out = reconcile(T0 + 1500_000 + 5_000) // 5s past natural end
-    expect(out.committed).toBe(true)
+    expect(out.committed).toBe(false)
+    const activity = getActivity()
+    expect(activity.phase).toBe('COMPLETED')
+    if (activity.phase !== 'COMPLETED') return
+    expect(activity.pending.actualSec).toBe(1500)
+    expect(activity.pending.endedAt).toBe(T0 + 1500_000)
+
+    const result = usePomodoroJourneyStore.getState().dispatch({ type: 'DISMISS' })
+    expect(result.committed).toBe(true)
     expect(getActivity().phase).toBe('IDLE')
     const { aggregates } = usePomodoroJourneyStore.getState()
     expect(aggregates.sessions).toHaveLength(1)
@@ -248,7 +256,7 @@ describe('store · reconcile (refresh / wake recovery)', () => {
     expect(a.focusRemainingSec).toBe(1410)
   })
 
-  it('B8b: RESTING reconcile past long sleep that also exceeds remaining focus → commits', () => {
+  it('B8b: RESTING reconcile past long sleep that also exceeds remaining focus → COMPLETED', () => {
     seedResting({
       plannedSec: 1500,
       focusRemainingSec: 60, // only 1min focus remaining when rest started
@@ -259,8 +267,10 @@ describe('store · reconcile (refresh / wake recovery)', () => {
     const { reconcile } = usePomodoroJourneyStore.getState()
     // sleep for 1h: rest auto-ends, then focus auto-completes
     const out = reconcile(T0 + 3_600_000)
-    expect(out.committed).toBe(true)
-    expect(getActivity().phase).toBe('IDLE')
+    expect(out.committed).toBe(false)
+    expect(getActivity().phase).toBe('COMPLETED')
+    const result = usePomodoroJourneyStore.getState().dispatch({ type: 'DISMISS' })
+    expect(result.committed).toBe(true)
     const { aggregates } = usePomodoroJourneyStore.getState()
     expect(aggregates.sessions).toHaveLength(1)
     expect(aggregates.sessions[0].restCount).toBe(1)

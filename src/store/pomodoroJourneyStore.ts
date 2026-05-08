@@ -3,6 +3,8 @@ import { persist, createJSONStorage } from 'zustand/middleware'
 import {
   INITIAL_STATE,
   REST_DURATION_SEC,
+  getActiveFocusEndAt,
+  getActiveFocusRemainingSec,
   reducer,
   type Action,
   type ActiveSession,
@@ -64,16 +66,13 @@ export function resetIdGenerator() {
   idGenerator = defaultIdGenerator
 }
 
-function buildPendingFromTimedRecovery(
-  session: ActiveSession,
-  now: number
-): PendingSession {
+function buildPendingFromTimedRecovery(session: ActiveSession): PendingSession {
   return {
     topic: session.topic,
     plannedSec: session.plannedSec,
     actualSec: session.plannedSec,
     startedAt: session.startedAt,
-    endedAt: now,
+    endedAt: getActiveFocusEndAt(session),
     restCount: session.restCount,
     totalRestSec: Math.round(session.totalRestSec),
   }
@@ -91,24 +90,17 @@ function reconcileActivity(
   summited: boolean
 } {
   if (activity.phase === 'FOCUSING') {
-    const elapsed = (now - activity.session.currentRunStartedAt) / 1000
-    const remaining =
-      activity.session.plannedSec -
-      activity.session.consumedSecBeforeRun -
-      elapsed
+    const remaining = getActiveFocusRemainingSec(activity.session, now)
     if (remaining <= 0) {
-      const pending = buildPendingFromTimedRecovery(activity.session, now)
-      const { next: nextAgg, summited } = commitSession(
-        aggregates,
-        pending,
-        idGenerator()
-      )
       return {
-        activity: { phase: 'IDLE' },
-        aggregates: nextAgg,
+        activity: {
+          phase: 'COMPLETED',
+          pending: buildPendingFromTimedRecovery(activity.session),
+        },
+        aggregates,
         changed: true,
-        committed: true,
-        summited,
+        committed: false,
+        summited: false,
       }
     }
     const newRemaining = Math.ceil(remaining)

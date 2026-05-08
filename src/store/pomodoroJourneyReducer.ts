@@ -1,9 +1,7 @@
 // Pure reducer for the Focus Journey state machine.
-// See tomato.md §1.2 for the transition matrix and §4 Phase A for tests.
 //
 // This file holds NO side effects: no zustand, no timers, no IO.
-// The store wrapper (added later) drives TICK from setInterval and
-// commits PendingSession into aggregates on DISMISS.
+// The store wrapper drives TICK from setInterval and commits PendingSession into aggregates.
 
 export const FOCUS_DURATIONS = [1500, 2700, 3600] as const
 export type FocusDuration = typeof FOCUS_DURATIONS[number]
@@ -57,6 +55,22 @@ export type Action =
 
 export const INITIAL_STATE: ActivityState = { phase: 'IDLE' }
 
+export function getActiveFocusRemainingSec(
+  session: ActiveSession,
+  now: number
+): number {
+  const elapsedThisRun = (now - session.currentRunStartedAt) / 1000
+  return session.plannedSec - session.consumedSecBeforeRun - elapsedThisRun
+}
+
+export function getActiveFocusEndAt(session: ActiveSession): number {
+  const remainingRunSec = Math.max(
+    0,
+    session.plannedSec - session.consumedSecBeforeRun
+  )
+  return session.currentRunStartedAt + remainingRunSec * 1000
+}
+
 export function reducer(state: ActivityState, action: Action): ActivityState {
   switch (action.type) {
     case 'OPEN_SETUP':
@@ -84,31 +98,44 @@ export function reducer(state: ActivityState, action: Action): ActivityState {
 
     case 'TICK': {
       if (state.phase === 'FOCUSING') {
-        const next = state.focusRemainingSec - 1
-        if (next <= 0) {
+        const remaining = getActiveFocusRemainingSec(state.session, action.now)
+        if (remaining <= 0) {
           return {
             phase: 'COMPLETED',
-            pending: buildPending(state.session, state.session.plannedSec, action.now),
+            pending: buildPending(
+              state.session,
+              state.session.plannedSec,
+              getActiveFocusEndAt(state.session)
+            ),
           }
         }
+        const next = Math.ceil(remaining)
+        if (next === state.focusRemainingSec) return state
         return { ...state, focusRemainingSec: next }
       }
       if (state.phase === 'RESTING') {
-        const next = state.restRemainingSec - 1
-        if (next <= 0) {
+        if (state.session.restStartedAt === null) return state
+        const restElapsedSec = (action.now - state.session.restStartedAt) / 1000
+        if (restElapsedSec >= REST_DURATION_SEC) {
+          const resumeAt = state.session.restStartedAt + REST_DURATION_SEC * 1000
           const session: ActiveSession = {
             ...state.session,
             restCount: state.session.restCount + 1,
             totalRestSec: state.session.totalRestSec + REST_DURATION_SEC,
-            currentRunStartedAt: action.now,
+            currentRunStartedAt: resumeAt,
             restStartedAt: null,
           }
-          return {
-            phase: 'FOCUSING',
-            session,
-            focusRemainingSec: state.focusRemainingSec,
-          }
+          return reducer(
+            {
+              phase: 'FOCUSING',
+              session,
+              focusRemainingSec: state.focusRemainingSec,
+            },
+            action
+          )
         }
+        const next = Math.ceil(REST_DURATION_SEC - restElapsedSec)
+        if (next === state.restRemainingSec) return state
         return { ...state, restRemainingSec: next }
       }
       return state

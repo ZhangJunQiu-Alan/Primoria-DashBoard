@@ -130,6 +130,15 @@ describe('reducer · phase A — state machine', () => {
     expect(next.focusRemainingSec).toBe(1499)
   })
 
+  it('A5b: FOCUSING + throttled TICK recomputes remaining from real elapsed time', () => {
+    const next = reducer(focusing({ focusRemainingSec: 1500 }), {
+      type: 'TICK',
+      now: T0 + 30_000,
+    })
+    if (next.phase !== 'FOCUSING') throw new Error('expected FOCUSING')
+    expect(next.focusRemainingSec).toBe(1470)
+  })
+
   // A6
   it('A6: FOCUSING + TAP_BG → RESTING with frozen focus and accumulated consumedSec', () => {
     const next = reducer(
@@ -190,17 +199,21 @@ describe('reducer · phase A — state machine', () => {
 
   // A9
   it('A9: RESTING + TICK with restRemainingSec=1 → FOCUSING; restCount +1, totalRestSec += full cycle', () => {
+    const restStartedAt = T0 + 10_000
     const next = reducer(
       resting({
+        session: { restStartedAt, consumedSecBeforeRun: 700 },
         focusRemainingSec: 800,
         restRemainingSec: 1,
       }),
-      { type: 'TICK', now: T0 + 100_000 }
+      { type: 'TICK', now: restStartedAt + REST_DURATION_SEC * 1000 }
     )
     if (next.phase !== 'FOCUSING') throw new Error('expected FOCUSING')
     expect(next.session.restCount).toBe(1)
     expect(next.session.totalRestSec).toBe(REST_DURATION_SEC)
-    expect(next.session.currentRunStartedAt).toBe(T0 + 100_000)
+    expect(next.session.currentRunStartedAt).toBe(
+      restStartedAt + REST_DURATION_SEC * 1000
+    )
     expect(next.session.restStartedAt).toBeNull()
     expect(next.focusRemainingSec).toBe(800)
   })
@@ -244,10 +257,22 @@ describe('reducer · phase A — state machine', () => {
     expect(next.pending.endedAt).toBe(T0 + 1500_000)
   })
 
+  it('A12b: FOCUSING + throttled TICK past planned end still completes', () => {
+    const next = reducer(focusing({ focusRemainingSec: 1500 }), {
+      type: 'TICK',
+      now: T0 + 1500_000 + 60_000,
+    })
+    if (next.phase !== 'COMPLETED') throw new Error('expected COMPLETED')
+    expect(next.pending.actualSec).toBe(1500)
+    expect(next.pending.endedAt).toBe(T0 + 1500_000)
+  })
+
   // A13
   it('A13: RESTING + TICK does NOT push to COMPLETED even if focusRemainingSec=1 (focus frozen)', () => {
+    const restStartedAt = T0 - 200_000
     const next = reducer(
       resting({
+        session: { restStartedAt },
         focusRemainingSec: 1,
         restRemainingSec: 100,
       }),

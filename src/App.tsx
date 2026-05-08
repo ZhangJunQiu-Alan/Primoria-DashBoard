@@ -11,6 +11,7 @@ import { useMusicUploader } from '@/hooks/useMusicUploader'
 import { useUiVisible } from '@/hooks/useUiVisible'
 import { useGoogleCalendarTokenCapture } from '@/hooks/useGoogleCalendarTokenCapture'
 import { useWidgetDataStoreSync } from '@/hooks/useWidgetDataStoreSync'
+import { useFocusJourneyDriver } from '@/hooks/useFocusJourneyDriver'
 import { sweepExpiredAudio } from '@/lib/audioCache'
 import { ALLOWED_BACKGROUND_IMAGE_TYPES, MAX_BACKGROUND_IMAGE_BYTES } from '@/lib/cloudSnapshots'
 import { migrateLegacyNotesToWidgetStore } from '@/lib/notesMigration'
@@ -39,6 +40,7 @@ function DashboardApp() {
 
   useWidgetDataStoreSync()
   useGoogleCalendarTokenCapture()
+  useFocusJourneyDriver()
 
   useEffect(() => {
     void sweepExpiredAudio()
