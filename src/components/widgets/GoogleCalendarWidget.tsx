@@ -1,36 +1,52 @@
-import { useState, useRef } from 'react'
-import { ExternalLink, Info, Save } from 'lucide-react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { ExternalLink, Info, RefreshCw, Save } from 'lucide-react'
+import { getGoogleCalendarEmbedSrc } from '@/lib/googleCalendarEmbed'
 import { useWidgetDataStore } from '@/store/widgetDataStore'
 
 interface GoogleCalendarWidgetProps {
   widgetId: string
 }
 
+function useElementReady<T extends HTMLElement>() {
+  const ref = useRef<T>(null)
+  const [ready, setReady] = useState(false)
+
+  useEffect(() => {
+    const element = ref.current
+    if (!element) return
+
+    const update = () => {
+      const rect = element.getBoundingClientRect()
+      setReady(rect.width > 24 && rect.height > 24)
+    }
+
+    update()
+    const observer = new ResizeObserver(update)
+    observer.observe(element)
+
+    return () => observer.disconnect()
+  }, [])
+
+  return { ready, ref }
+}
+
 export function GoogleCalendarWidget({ widgetId }: GoogleCalendarWidgetProps) {
   const embedCode = useWidgetDataStore((s) => s.calendarEmbeds[widgetId] ?? '')
   const setCalendarEmbed = useWidgetDataStore((s) => s.setCalendarEmbed)
+  const embedSrc = useMemo(() => getGoogleCalendarEmbedSrc(embedCode), [embedCode])
 
   const [draft, setDraft] = useState('')
   const [editing, setEditing] = useState(false)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const draftEmbedSrc = useMemo(() => getGoogleCalendarEmbedSrc(draft), [draft])
 
   // If embed code is saved, show the calendar iframe
   if (embedCode && !editing) {
     return (
-      <div className="relative h-full w-full group">
-        <div
-          dangerouslySetInnerHTML={{ __html: embedCode }}
-          style={{ width: '100%', height: '100%', overflow: 'hidden' }}
-          className="[&>iframe]:w-full [&>iframe]:h-full [&>iframe]:border-0"
-        />
-        <button
-          onClick={() => { setDraft(embedCode); setEditing(true) }}
-          className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-all px-2 py-1 rounded-lg text-xs"
-          style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', color: 'var(--text-muted)' }}
-        >
-          更改
-        </button>
-      </div>
+      <CalendarEmbedView
+        embedSrc={embedSrc}
+        onEdit={() => { setDraft(embedCode); setEditing(true) }}
+      />
     )
   }
 
@@ -38,7 +54,9 @@ export function GoogleCalendarWidget({ widgetId }: GoogleCalendarWidgetProps) {
   function handleSave() {
     const trimmed = draft.trim()
     if (!trimmed) return
-    setCalendarEmbed(widgetId, trimmed)
+    const src = getGoogleCalendarEmbedSrc(trimmed)
+    if (!src) return
+    setCalendarEmbed(widgetId, src)
     setDraft('')
     setEditing(false)
   }
@@ -110,12 +128,12 @@ export function GoogleCalendarWidget({ widgetId }: GoogleCalendarWidgetProps) {
           )}
           <button
             onClick={handleSave}
-            disabled={!draft.trim()}
+            disabled={!draftEmbedSrc}
             className="flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs transition-all"
             style={{
-              background: draft.trim() ? 'var(--primary)' : 'var(--border)',
-              color: draft.trim() ? 'white' : 'var(--text-muted)',
-              cursor: draft.trim() ? 'pointer' : 'default',
+              background: draftEmbedSrc ? 'var(--primary)' : 'var(--border)',
+              color: draftEmbedSrc ? 'white' : 'var(--text-muted)',
+              cursor: draftEmbedSrc ? 'pointer' : 'default',
             }}
           >
             <Save size={12} />
@@ -123,6 +141,86 @@ export function GoogleCalendarWidget({ widgetId }: GoogleCalendarWidgetProps) {
           </button>
         </div>
       </div>
+    </div>
+  )
+}
+
+function CalendarEmbedView({
+  embedSrc,
+  onEdit,
+}: {
+  embedSrc: string | null
+  onEdit: () => void
+}) {
+  const [reloadKey, setReloadKey] = useState(0)
+  const [loadedFrameId, setLoadedFrameId] = useState<string | null>(null)
+  const { ready: iframeContainerReady, ref: iframeContainerRef } = useElementReady<HTMLDivElement>()
+  const iframeId = embedSrc ? `${embedSrc}-${reloadKey}` : ''
+  const iframeLoaded = loadedFrameId === iframeId
+
+  return (
+    <div ref={iframeContainerRef} className="relative h-full w-full overflow-hidden rounded-xl group">
+      {embedSrc && iframeContainerReady ? (
+        <iframe
+          key={iframeId}
+          src={embedSrc}
+          title="Google Calendar"
+          loading="eager"
+          referrerPolicy="no-referrer-when-downgrade"
+          onLoad={() => setLoadedFrameId(iframeId)}
+          style={{
+            width: '100%',
+            height: '100%',
+            border: 0,
+            display: 'block',
+            background: 'white',
+          }}
+        />
+      ) : (
+        <CalendarEmbedState
+          message={embedSrc ? '正在准备日历尺寸...' : '日历嵌入代码无效，请重新粘贴 Google Calendar iframe。'}
+        />
+      )}
+
+      {embedSrc && iframeContainerReady && !iframeLoaded && (
+        <CalendarEmbedState message="正在载入 Google 日历..." />
+      )}
+
+      <div className="absolute right-2 top-2 flex gap-1 opacity-0 transition-all group-hover:opacity-100">
+        {embedSrc && (
+          <button
+            onClick={() => setReloadKey((key) => key + 1)}
+            className="rounded-lg px-2 py-1 text-xs"
+            style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', color: 'var(--text-muted)' }}
+            title="重新加载日历"
+          >
+            <RefreshCw size={12} />
+          </button>
+        )}
+        <button
+          onClick={onEdit}
+          className="rounded-lg px-2 py-1 text-xs"
+          style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', color: 'var(--text-muted)' }}
+        >
+          更改
+        </button>
+      </div>
+    </div>
+  )
+}
+
+function CalendarEmbedState({ message }: { message: string }) {
+  return (
+    <div
+      className="absolute inset-0 flex items-center justify-center px-4 text-center"
+      style={{
+        background: 'rgba(254,250,245,0.92)',
+        color: 'var(--text-muted)',
+        fontSize: '12px',
+        lineHeight: 1.6,
+      }}
+    >
+      {message}
     </div>
   )
 }
