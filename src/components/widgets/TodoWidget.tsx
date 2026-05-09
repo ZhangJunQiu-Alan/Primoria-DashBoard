@@ -13,6 +13,8 @@ import { useTodoDndState } from '@/components/layout/TodoDndProvider'
 import type { TodoItem } from '@/store/widgetDataStore'
 
 const EMPTY: TodoItem[] = []
+const TODO_TEXT_SIZE = '11px'
+const TODO_TEXT_LINE_HEIGHT = 1.45
 
 const SortableRow = memo(function SortableRow({
   todo, widgetId, onRemove, onToggle, isEditing, onStartEdit, onCommitEdit, onCancelEdit,
@@ -87,7 +89,8 @@ const SortableRow = memo(function SortableRow({
           onClick={(e) => e.stopPropagation()}
           className="flex-1 outline-none bg-transparent"
           style={{
-            fontSize: '15px',
+            fontSize: TODO_TEXT_SIZE,
+            lineHeight: TODO_TEXT_LINE_HEIGHT,
             color: 'var(--text)',
             borderBottom: '1px solid var(--primary-light)',
             padding: '0 2px',
@@ -98,9 +101,11 @@ const SortableRow = memo(function SortableRow({
           className="flex-1 cursor-text"
           onClick={() => onStartEdit(todo.id)}
           style={{
-            fontSize: '15px',
+            fontSize: TODO_TEXT_SIZE,
+            lineHeight: TODO_TEXT_LINE_HEIGHT,
             textDecoration: todo.done ? 'line-through' : 'none',
             color: todo.done ? 'var(--text-muted)' : 'var(--text)',
+            wordBreak: 'break-word',
           }}
         >
           {todo.text}
@@ -201,7 +206,13 @@ export function TodoWidget({ widgetId = 'default' }: TodoWidgetProps) {
             onBlur={() => { if (!input.trim()) setAdding(false) }}
             placeholder="输入任务，Enter 继续，Esc 结束"
             className="w-full rounded-lg px-3 py-1.5 outline-none"
-            style={{ fontSize: '15px', background: 'var(--bg-muted)', border: '1.5px solid var(--primary-light)', color: 'var(--text)' }}
+            style={{
+              fontSize: TODO_TEXT_SIZE,
+              lineHeight: TODO_TEXT_LINE_HEIGHT,
+              background: 'var(--bg-muted)',
+              border: '1.5px solid var(--primary-light)',
+              color: 'var(--text)',
+            }}
           />
         </div>
       )}
@@ -219,7 +230,7 @@ export function TodoWidget({ widgetId = 'default' }: TodoWidgetProps) {
           {todos.length === 0 && !adding && (
             <p
               className="text-center mt-6 cursor-text select-none"
-              style={{ fontSize: '15px', color: 'var(--text-muted)' }}
+              style={{ fontSize: TODO_TEXT_SIZE, lineHeight: TODO_TEXT_LINE_HEIGHT, color: 'var(--text-muted)' }}
               onClick={startAdding}
             >
               {isDraggingFromOther && isOver ? '松开放置到这里' : '点击此处添加任务'}

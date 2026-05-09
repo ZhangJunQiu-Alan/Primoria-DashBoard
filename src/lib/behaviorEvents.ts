@@ -98,7 +98,8 @@ export const BEHAVIOR_EVENT_QUEUE_KEY = 'primoria-behavior-events-queue.v1'
 export const BEHAVIOR_EVENT_QUEUE_CHANGED = 'primoria:behavior-events-queue-changed'
 export const BEHAVIOR_EVENT_SCHEMA_VERSION = 1
 export const BEHAVIOR_EVENT_BATCH_SIZE = 50
-export const BEHAVIOR_EVENT_FLUSH_DELAY_MS = 5_000
+export const BEHAVIOR_EVENT_FLUSH_DELAY_MS = 60_000
+export const BEHAVIOR_EVENT_RETRY_INITIAL_DELAY_MS = 10_000
 export const BEHAVIOR_EVENT_MAX_RETRY_DELAY_MS = 60_000
 
 const MAX_QUEUE_SIZE = 1_000

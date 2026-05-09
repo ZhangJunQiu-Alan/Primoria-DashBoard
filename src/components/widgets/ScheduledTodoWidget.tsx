@@ -629,7 +629,7 @@ function TimelineColumn({
     <div
       ref={setNodeRef}
       style={{
-        height: '100%',
+        minHeight: '100%',
         display: 'flex',
         flexDirection: 'column',
         minWidth: 0,
@@ -696,15 +696,14 @@ function TimelineColumn({
       </div>
 
       <div
-        data-scheduled-column-scroll="true"
         style={{
           flex: 1,
-          overflowY: 'auto',
+          overflowY: 'visible',
           padding: '8px',
           display: 'flex',
           flexDirection: 'column',
           gap: '8px',
-          minHeight: 0,
+          minHeight: '72px',
         }}
       >
         {orderedTasks.length === 0 ? (
@@ -816,19 +815,13 @@ export function ScheduledTodoWidget({ widgetId }: { widgetId: string }) {
 
     if (Math.abs(event.deltaX) > Math.abs(event.deltaY)) return
 
-    const target = event.target instanceof Element
-      ? event.target.closest('[data-scheduled-column-scroll="true"]')
-      : null
+    const canScrollVertically = container.scrollHeight > container.clientHeight + 1
+    const atTop = container.scrollTop <= 0
+    const atBottom = container.scrollTop + container.clientHeight >= container.scrollHeight - 1
 
-    if (target instanceof HTMLElement) {
-      const canScrollVertically = target.scrollHeight > target.clientHeight + 1
-      const atTop = target.scrollTop <= 0
-      const atBottom = target.scrollTop + target.clientHeight >= target.scrollHeight - 1
-
-      if (canScrollVertically) {
-        if (event.deltaY < 0 && !atTop) return
-        if (event.deltaY > 0 && !atBottom) return
-      }
+    if (canScrollVertically) {
+      if (event.deltaY < 0 && !atTop) return
+      if (event.deltaY > 0 && !atBottom) return
     }
 
     event.preventDefault()
@@ -942,7 +935,8 @@ export function ScheduledTodoWidget({ widgetId }: { widgetId: string }) {
           style={{
             height: '100%',
             overflowX: 'auto',
-            overflowY: 'hidden',
+            overflowY: 'auto',
+            overscrollBehavior: 'contain',
             paddingBottom: '2px',
           }}
         >
@@ -952,7 +946,7 @@ export function ScheduledTodoWidget({ widgetId }: { widgetId: string }) {
               gridTemplateColumns: `repeat(${SCHEDULE_DAYS}, minmax(${COLUMN_WIDTH}px, 1fr))`,
               gap: `${COLUMN_GAP}px`,
               width: `max(100%, ${timelineMinWidth})`,
-              height: '100%',
+              minHeight: '100%',
             }}
           >
             {dateColumns.map((date) => {
