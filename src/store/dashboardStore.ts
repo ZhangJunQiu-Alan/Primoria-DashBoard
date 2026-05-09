@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
+import { trackBehaviorEvent } from '@/lib/behaviorEvents'
 import type {
   DashboardBreakpoint,
   LayoutItem,
@@ -73,6 +74,21 @@ const DEFAULT_LAYOUT: LayoutItem[] = [
 
 const DEFAULT_LAYOUTS: ResponsiveLayouts = {
   lg: DEFAULT_LAYOUT,
+}
+
+const TITLE_BY_TYPE: Record<WidgetType, string> = {
+  clock: '时钟',
+  'daily-brief': '每日简报',
+  'google-calendar': 'Google 日历',
+  habits: '习惯打卡',
+  'lined-notes': '格纸笔记',
+  motto: '格言',
+  'music-player': '音乐播放器',
+  notes: '便签',
+  'focus-journey': '番茄钟',
+  'quick-links': '快速链接',
+  'scheduled-todo': '日程任务',
+  todo: '待办事项',
 }
 
 function cloneLayoutItem(item: LayoutItem): LayoutItem {
@@ -172,9 +188,25 @@ export const useDashboardStore = create<DashboardState>()(
             layouts: nextLayouts,
           }
         })
+        trackBehaviorEvent({
+          eventName: 'dashboard.widget_added',
+          metadata: { widgetType: type },
+          objectId: id,
+          objectType: 'widget',
+          summary: `添加组件：${TITLE_BY_TYPE[type]}`,
+          surface: 'dashboard',
+          widgetId: id,
+          widgetType: type,
+        })
       },
 
       removeWidget: (id) => {
+        const before = useDashboardStore.getState()
+        const removed = before.widgets.find((widget) => widget.id === id)
+        const title = removed
+          ? before.widgetNames[id] ?? TITLE_BY_TYPE[removed.type]
+          : id
+
         set((state) => {
           const widgetNames = { ...state.widgetNames }
           delete widgetNames[id]
@@ -194,18 +226,67 @@ export const useDashboardStore = create<DashboardState>()(
             widgetNames,
           }
         })
+
+        if (removed) {
+          trackBehaviorEvent({
+            eventName: 'dashboard.widget_removed',
+            metadata: { title, widgetType: removed.type },
+            objectId: id,
+            objectType: 'widget',
+            summary: `删除组件：${title}`,
+            surface: 'dashboard',
+            widgetId: id,
+            widgetType: removed.type,
+          })
+        }
       },
 
-      updateLayout: (breakpoint, layout) =>
+      updateLayout: (breakpoint, layout) => {
         set((state) => ({
           layouts: {
             ...state.layouts,
             [breakpoint]: layout.map(cloneLayoutItem),
           },
-        })),
+        }))
+        trackBehaviorEvent({
+          eventName: 'dashboard.layout_updated',
+          metadata: {
+            breakpoint,
+            itemCount: layout.length,
+            layout: layout.map((item) => ({
+              h: item.h,
+              i: item.i,
+              w: item.w,
+              x: item.x,
+              y: item.y,
+            })),
+          },
+          objectType: 'layout',
+          summary: `调整 ${breakpoint} 布局`,
+          surface: 'dashboard',
+        })
+      },
 
-      renameWidget: (id, name) =>
-        set((state) => ({ widgetNames: { ...state.widgetNames, [id]: name } })),
+      renameWidget: (id, name) => {
+        const before = useDashboardStore.getState()
+        const widget = before.widgets.find((item) => item.id === id)
+        const previousName = widget ? before.widgetNames[id] ?? TITLE_BY_TYPE[widget.type] : id
+        set((state) => ({ widgetNames: { ...state.widgetNames, [id]: name } }))
+        trackBehaviorEvent({
+          eventName: 'dashboard.widget_renamed',
+          metadata: {
+            nextName: name,
+            previousName,
+            widgetType: widget?.type ?? null,
+          },
+          objectId: id,
+          objectType: 'widget',
+          summary: `重命名组件：${previousName} -> ${name}`,
+          surface: 'dashboard',
+          widgetId: id,
+          widgetType: widget?.type ?? null,
+        })
+      },
     }),
     {
       name: 'primoria-dashboard',

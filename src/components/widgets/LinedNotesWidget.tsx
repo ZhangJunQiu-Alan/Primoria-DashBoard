@@ -1,4 +1,6 @@
+import { useEffect, useRef } from 'react'
 import { Plus, X } from 'lucide-react'
+import { summarizeText, trackBehaviorEvent } from '@/lib/behaviorEvents'
 import {
   createBlankLinedNotePage,
   createLinedNotesDocument,
@@ -21,6 +23,13 @@ export function LinedNotesWidget({ widgetId = 'default' }: LinedNotesWidgetProps
   const activePageIndex = documentState.pages.findIndex((page) => page.id === documentState.activePageId)
   const safeActivePageIndex = activePageIndex >= 0 ? activePageIndex : 0
   const activePage = documentState.pages[safeActivePageIndex]
+  const trackedContentByPageRef = useRef<Record<string, string>>({})
+
+  useEffect(() => {
+    if (!(activePage.id in trackedContentByPageRef.current)) {
+      trackedContentByPageRef.current[activePage.id] = activePage.content
+    }
+  }, [activePage.content, activePage.id])
 
   function commitDocument(document: LinedNotesDocument) {
     setLinedNotesDocument(widgetId, document)
@@ -29,6 +38,16 @@ export function LinedNotesWidget({ widgetId = 'default' }: LinedNotesWidgetProps
   function setActivePage(pageId: string) {
     if (documentState.activePageId === pageId) return
     commitDocument({ ...documentState, activePageId: pageId })
+    trackBehaviorEvent({
+      eventName: 'note.lined_page_selected',
+      metadata: { pageId },
+      objectId: pageId,
+      objectType: 'lined_note_page',
+      summary: '切换格纸笔记页面',
+      surface: 'widget',
+      widgetId,
+      widgetType: 'lined-notes',
+    })
   }
 
   function handleContentChange(content: string) {
@@ -50,6 +69,17 @@ export function LinedNotesWidget({ widgetId = 'default' }: LinedNotesWidgetProps
       ...documentState,
       activePageId: nextPage.id,
       pages: nextPages,
+    })
+    trackedContentByPageRef.current[nextPage.id] = ''
+    trackBehaviorEvent({
+      eventName: 'note.lined_page_added',
+      metadata: { pageCount: nextPages.length },
+      objectId: nextPage.id,
+      objectType: 'lined_note_page',
+      summary: '新增格纸笔记页面',
+      surface: 'widget',
+      widgetId,
+      widgetType: 'lined-notes',
     })
   }
 
@@ -75,6 +105,41 @@ export function LinedNotesWidget({ widgetId = 'default' }: LinedNotesWidgetProps
       ...documentState,
       activePageId: nextActivePage.id,
       pages: nextPages,
+    })
+    delete trackedContentByPageRef.current[currentPage.id]
+    trackBehaviorEvent({
+      eventName: 'note.lined_page_deleted',
+      metadata: {
+        contentLength: currentPage.content.length,
+        pageCount: nextPages.length,
+      },
+      objectId: currentPage.id,
+      objectType: 'lined_note_page',
+      summary: '删除格纸笔记页面',
+      surface: 'widget',
+      widgetId,
+      widgetType: 'lined-notes',
+    })
+  }
+
+  function trackActivePageEditIfChanged() {
+    const previous = trackedContentByPageRef.current[activePage.id] ?? ''
+    if (previous === activePage.content) return
+    trackedContentByPageRef.current[activePage.id] = activePage.content
+    trackBehaviorEvent({
+      eventName: 'note.lined_updated',
+      metadata: {
+        nextLength: activePage.content.length,
+        nextSummary: summarizeText(activePage.content, 80),
+        pageId: activePage.id,
+        previousLength: previous.length,
+      },
+      objectId: activePage.id,
+      objectType: 'lined_note_page',
+      summary: `更新格纸笔记：${activePage.content.length} 字`,
+      surface: 'widget',
+      widgetId,
+      widgetType: 'lined-notes',
     })
   }
 
@@ -179,6 +244,7 @@ export function LinedNotesWidget({ widgetId = 'default' }: LinedNotesWidgetProps
       <textarea
         value={activePage.content}
         onChange={(e) => handleContentChange(e.target.value)}
+        onBlur={trackActivePageEditIfChanged}
         placeholder="开始记录..."
         spellCheck={false}
         className="flex-1 w-full resize-none outline-none text-sm"

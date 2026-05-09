@@ -8,6 +8,8 @@ import {
 } from 'react'
 import { Cloud, Database, Download, Upload } from 'lucide-react'
 import { toast } from 'sonner'
+import { useBehaviorEventSync } from '@/hooks/useBehaviorEventSync'
+import { withBehaviorTrackingSuppressed } from '@/lib/behaviorEvents'
 import {
   MAX_BACKGROUND_IMAGE_BYTES,
   applyDashboardSnapshot,
@@ -82,6 +84,8 @@ export function CloudSyncProvider({ children }: { children: ReactNode }) {
   const backgroundPathRef = useRef<string | null>(null)
   const lastUploadedBackgroundRef = useRef<string | null>(null)
   const lastPushedFingerprintRef = useRef<string | null>(null)
+
+  useBehaviorEventSync(user?.id)
 
   useEffect(() => {
     if (!supabase) return
@@ -214,8 +218,12 @@ export function CloudSyncProvider({ children }: { children: ReactNode }) {
     setMessage('正在载入云端数据...')
 
     try {
-      if (row.dashboard_state) applyDashboardSnapshot(row.dashboard_state)
-      if (row.widget_data) applyWidgetDataSnapshot(row.widget_data)
+      if (row.dashboard_state) {
+        withBehaviorTrackingSuppressed(() => applyDashboardSnapshot(row.dashboard_state!))
+      }
+      if (row.widget_data) {
+        withBehaviorTrackingSuppressed(() => applyWidgetDataSnapshot(row.widget_data!))
+      }
 
       backgroundPathRef.current = row.background_path
 
@@ -226,10 +234,14 @@ export function CloudSyncProvider({ children }: { children: ReactNode }) {
         if (error) throw error
 
         const dataUrl = await blobToDataUrl(data)
-        useBackgroundStore.getState().setBackgroundImage(dataUrl)
+        withBehaviorTrackingSuppressed(() => {
+          useBackgroundStore.getState().setBackgroundImage(dataUrl)
+        })
         lastUploadedBackgroundRef.current = dataUrl
       } else {
-        useBackgroundStore.getState().setBackgroundImage(null)
+        withBehaviorTrackingSuppressed(() => {
+          useBackgroundStore.getState().setBackgroundImage(null)
+        })
         lastUploadedBackgroundRef.current = null
       }
 

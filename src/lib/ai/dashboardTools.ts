@@ -18,7 +18,7 @@ const TITLE_BY_TYPE: Record<WidgetType, string> = {
   habits: '习惯打卡',
   'lined-notes': '格纸笔记',
   motto: '格言',
-  'music-player': '网易云播放器',
+  'music-player': '音乐播放器',
   notes: '便签',
   'focus-journey': '番茄钟',
   'quick-links': '快速链接',

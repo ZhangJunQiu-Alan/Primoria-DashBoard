@@ -1,5 +1,6 @@
 import { useState, useCallback, useRef, memo } from 'react'
 import { Plus, X, Link2, ImageIcon } from 'lucide-react'
+import { getDomainFromUrl, trackBehaviorEvent } from '@/lib/behaviorEvents'
 import { useWidgetDataStore } from '@/store/widgetDataStore'
 
 function getFavicon(url: string): string | null {
@@ -184,12 +185,23 @@ const LinkItem = memo(function LinkItem({
       target="_blank"
       rel="noopener noreferrer"
       className="group relative flex flex-col items-center gap-1 p-2 rounded-xl transition-colors w-16"
+      onClick={() => {
+        trackBehaviorEvent({
+          eventName: 'quick_link.opened',
+          metadata: { domain: getDomainFromUrl(url), title },
+          objectId: id,
+          objectType: 'quick_link',
+          summary: `打开快速链接：${title}`,
+          surface: 'widget',
+          widgetType: 'quick-links',
+        })
+      }}
       onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg-muted)')}
       onMouseLeave={e => (e.currentTarget.style.background = '')}
       title={title}
     >
       <button
-        onClick={(e) => { e.preventDefault(); onRemove(id) }}
+        onClick={(e) => { e.preventDefault(); e.stopPropagation(); onRemove(id) }}
         className="absolute -top-1 -right-1 hidden group-hover:flex items-center justify-center w-4 h-4 rounded-full transition-colors"
         style={{ background: 'var(--border)' }}
         onMouseEnter={e => (e.currentTarget.style.background = '#C4807A')}

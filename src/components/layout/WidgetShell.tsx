@@ -24,7 +24,7 @@ const DEFAULT_TITLES: Record<WidgetType, string> = {
   todo: '待办事项',
   'focus-journey': '番茄钟',
   'google-calendar': 'Google 日历',
-  'music-player': '网易云播放器',
+  'music-player': '音乐播放器',
   'habits': '习惯打卡',
   'scheduled-todo': '日程任务',
   'daily-brief': '每日简报',

@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { trackBehaviorEvent } from '@/lib/behaviorEvents'
 
 export const BACKGROUND_STORAGE_KEY = 'primoria-background'
 
@@ -28,7 +29,19 @@ interface BackgroundState {
 export const useBackgroundStore = create<BackgroundState>()((set) => ({
   backgroundImage: loadImage(),
   setBackgroundImage: (dataUrl) => {
+    const hadBackground = Boolean(loadImage())
     saveImage(dataUrl)
     set({ backgroundImage: dataUrl })
+    trackBehaviorEvent({
+      eventName: 'dashboard.background_changed',
+      metadata: {
+        hasBackground: Boolean(dataUrl),
+        previousHadBackground: hadBackground,
+        size: dataUrl?.length ?? 0,
+      },
+      objectType: 'background',
+      summary: dataUrl ? '设置壁纸' : '移除壁纸',
+      surface: 'dashboard',
+    })
   },
 }))

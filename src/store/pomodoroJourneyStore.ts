@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { persist, createJSONStorage } from 'zustand/middleware'
+import { summarizeText, trackBehaviorEvent } from '@/lib/behaviorEvents'
 import {
   INITIAL_STATE,
   REST_DURATION_SEC,
@@ -75,6 +76,99 @@ function buildPendingFromTimedRecovery(session: ActiveSession): PendingSession {
     endedAt: getActiveFocusEndAt(session),
     restCount: session.restCount,
     totalRestSec: Math.round(session.totalRestSec),
+  }
+}
+
+function trackPomodoroAction(previous: ActivityState, next: ActivityState, action: Action) {
+  if (next === previous) return
+
+  if (action.type === 'OPEN_SETUP' && next.phase === 'SETUP') {
+    trackBehaviorEvent({
+      eventName: 'pomodoro.setup_opened',
+      objectType: 'pomodoro_session',
+      summary: '打开番茄钟设置',
+      surface: 'widget',
+      widgetType: 'focus-journey',
+    })
+    return
+  }
+
+  if (action.type === 'CANCEL') {
+    trackBehaviorEvent({
+      eventName: 'pomodoro.setup_cancelled',
+      objectType: 'pomodoro_session',
+      summary: '取消番茄钟设置',
+      surface: 'widget',
+      widgetType: 'focus-journey',
+    })
+    return
+  }
+
+  if (action.type === 'START' && next.phase === 'FOCUSING') {
+    trackBehaviorEvent({
+      eventName: 'pomodoro.started',
+      metadata: {
+        durationSec: action.duration,
+        topicLength: action.topic.length,
+        topicSummary: summarizeText(action.topic, 72),
+      },
+      objectId: String(action.now),
+      objectType: 'pomodoro_session',
+      summary: `开始番茄钟：${summarizeText(action.topic, 72)}`,
+      surface: 'widget',
+      widgetType: 'focus-journey',
+    })
+    return
+  }
+
+  if (action.type === 'TAP_BG' && previous.phase === 'FOCUSING' && next.phase === 'RESTING') {
+    trackBehaviorEvent({
+      eventName: 'pomodoro.rest_started',
+      metadata: {
+        focusRemainingSec: next.focusRemainingSec,
+        topicSummary: summarizeText(previous.session.topic, 72),
+      },
+      objectId: String(previous.session.startedAt),
+      objectType: 'pomodoro_session',
+      summary: `进入休息：${summarizeText(previous.session.topic, 72)}`,
+      surface: 'widget',
+      widgetType: 'focus-journey',
+    })
+    return
+  }
+
+  if (action.type === 'TAP_BG' && previous.phase === 'RESTING' && next.phase === 'FOCUSING') {
+    trackBehaviorEvent({
+      eventName: 'pomodoro.focus_resumed',
+      metadata: {
+        focusRemainingSec: next.focusRemainingSec,
+        topicSummary: summarizeText(next.session.topic, 72),
+      },
+      objectId: String(next.session.startedAt),
+      objectType: 'pomodoro_session',
+      summary: `恢复专注：${summarizeText(next.session.topic, 72)}`,
+      surface: 'widget',
+      widgetType: 'focus-journey',
+    })
+    return
+  }
+
+  if (next.phase === 'COMPLETED' && previous.phase !== 'COMPLETED') {
+    trackBehaviorEvent({
+      eventName: 'pomodoro.completed',
+      metadata: {
+        actualSec: next.pending.actualSec,
+        completedBy: action.type === 'LONGPRESS_DONE' ? 'manual' : 'timer',
+        plannedSec: next.pending.plannedSec,
+        restCount: next.pending.restCount,
+        topicSummary: summarizeText(next.pending.topic, 72),
+      },
+      objectId: String(next.pending.startedAt),
+      objectType: 'pomodoro_session',
+      summary: `完成番茄钟：${summarizeText(next.pending.topic, 72)}`,
+      surface: 'widget',
+      widgetType: 'focus-journey',
+    })
   }
 }
 
@@ -181,19 +275,59 @@ export const usePomodoroJourneyStore = create<PomodoroJourneyState>()(
             aggregates: nextAgg,
             lastTopic: activity.pending.topic,
           })
+          trackBehaviorEvent({
+            eventName: 'pomodoro.dismissed',
+            metadata: {
+              actualSec: activity.pending.actualSec,
+              plannedSec: activity.pending.plannedSec,
+              summited,
+              topicSummary: summarizeText(activity.pending.topic, 72),
+            },
+            objectId: String(activity.pending.startedAt),
+            objectType: 'pomodoro_session',
+            summary: `确认番茄钟完成：${summarizeText(activity.pending.topic, 72)}`,
+            surface: 'widget',
+            widgetType: 'focus-journey',
+          })
           return { committed: true, summited }
         }
 
         const next = reducer(activity, action)
         if (next === activity) return { committed: false, summited: false }
         set({ activity: next })
+        trackPomodoroAction(activity, next, action)
         return { committed: false, summited: false }
       },
 
-      setDefaultDuration: (duration) => set({ defaultDuration: duration }),
+      setDefaultDuration: (duration) => {
+        const previous = get().defaultDuration
+        set({ defaultDuration: duration })
+        if (previous !== duration) {
+          trackBehaviorEvent({
+            eventName: 'pomodoro.default_duration_changed',
+            metadata: { nextDurationSec: duration, previousDurationSec: previous },
+            objectType: 'pomodoro_setting',
+            summary: `修改番茄钟默认时长：${Math.round(duration / 60)} 分钟`,
+            surface: 'widget',
+            widgetType: 'focus-journey',
+          })
+        }
+      },
       setLastTopic: (topic) => set({ lastTopic: topic }),
-      setNotificationPermission: (perm) =>
-        set({ notificationPermission: perm }),
+      setNotificationPermission: (perm) => {
+        const previous = get().notificationPermission
+        set({ notificationPermission: perm })
+        if (previous !== perm) {
+          trackBehaviorEvent({
+            eventName: 'pomodoro.notification_permission_changed',
+            metadata: { nextPermission: perm, previousPermission: previous },
+            objectType: 'pomodoro_setting',
+            summary: `修改番茄钟通知权限：${perm}`,
+            surface: 'widget',
+            widgetType: 'focus-journey',
+          })
+        }
+      },
 
       reconcile: (now = Date.now()) => {
         const { activity, aggregates } = get()
@@ -202,6 +336,23 @@ export const usePomodoroJourneyStore = create<PomodoroJourneyState>()(
           return { changed: false, committed: false, summited: false }
         }
         set({ activity: out.activity, aggregates: out.aggregates })
+        if (out.activity.phase === 'COMPLETED' && activity.phase !== 'COMPLETED') {
+          trackBehaviorEvent({
+            eventName: 'pomodoro.completed',
+            metadata: {
+              actualSec: out.activity.pending.actualSec,
+              completedBy: 'reconcile',
+              plannedSec: out.activity.pending.plannedSec,
+              restCount: out.activity.pending.restCount,
+              topicSummary: summarizeText(out.activity.pending.topic, 72),
+            },
+            objectId: String(out.activity.pending.startedAt),
+            objectType: 'pomodoro_session',
+            summary: `恢复后确认番茄钟完成：${summarizeText(out.activity.pending.topic, 72)}`,
+            surface: 'widget',
+            widgetType: 'focus-journey',
+          })
+        }
         return {
           changed: true,
           committed: out.committed,

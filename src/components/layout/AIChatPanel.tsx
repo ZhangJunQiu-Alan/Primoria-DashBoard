@@ -2,6 +2,11 @@ import { useEffect, useRef, useState } from 'react'
 import { AlertCircle, Bot, Check, LoaderCircle, Send, Sparkles, X } from 'lucide-react'
 import { applyPendingActions, executeDashboardTool } from '@/lib/ai/dashboardTools'
 import { sendAgentTurn } from '@/lib/ai/api'
+import {
+  summarizeText,
+  trackBehaviorEvent,
+  withBehaviorEventContext,
+} from '@/lib/behaviorEvents'
 import type { GeminiContent, PendingAction } from '@/lib/ai/types'
 import { useCloudSync } from '@/components/cloud/cloudSyncContext'
 
@@ -68,6 +73,17 @@ export function AIChatPanel({ open, onClose }: AIChatPanelProps) {
 
         if (response.functionCalls.length === 0) {
           contentsRef.current = nextContents
+          trackBehaviorEvent({
+            actor: 'assistant',
+            eventName: 'ai.reply_received',
+            metadata: {
+              length: response.text.length,
+              replySummary: summarizeText(response.text || '我没有找到需要执行的操作。', 100),
+            },
+            objectType: 'ai_message',
+            summary: `收到 AI 回复：${summarizeText(response.text || '无文本回复', 80)}`,
+            surface: 'ai_chat',
+          })
           appendMessage({
             role: 'assistant',
             content: response.text || '我没有找到需要执行的操作。',
@@ -79,6 +95,14 @@ export function AIChatPanel({ open, onClose }: AIChatPanelProps) {
         const actions: PendingAction[] = []
 
         for (const call of response.functionCalls) {
+          trackBehaviorEvent({
+            actor: 'assistant',
+            eventName: 'ai.tool_called',
+            metadata: { toolName: call.name },
+            objectType: 'ai_tool_call',
+            summary: `AI 调用工具：${call.name}`,
+            surface: 'ai_chat',
+          })
           const result = await executeDashboardTool(call)
           actions.push(...result.pendingActions)
           toolParts.push(makeFunctionResponsePart(call, { result: result.response }))
@@ -90,6 +114,18 @@ export function AIChatPanel({ open, onClose }: AIChatPanelProps) {
         if (actions.length > 0) {
           contentsRef.current = nextContents
           setPendingActions(actions)
+          trackBehaviorEvent({
+            actor: 'assistant',
+            eventName: 'ai.pending_actions_created',
+            metadata: {
+              actionCount: actions.length,
+              actionTypes: actions.map((action) => action.type),
+              labels: actions.map((action) => summarizeText(action.label, 80)),
+            },
+            objectType: 'pending_action',
+            summary: `AI 准备 ${actions.length} 项待确认变更`,
+            surface: 'ai_chat',
+          })
           appendMessage({ role: 'assistant', content: summarizePendingActions(actions) })
           return
         }
@@ -99,6 +135,14 @@ export function AIChatPanel({ open, onClose }: AIChatPanelProps) {
       appendMessage({ role: 'assistant', content: '这个请求需要更多步骤，我先暂停在这里。' })
     } catch (error) {
       const message = error instanceof Error ? error.message : 'AI 请求失败'
+      trackBehaviorEvent({
+        actor: 'system',
+        eventName: 'ai.error',
+        metadata: { message: summarizeText(message, 120) },
+        objectType: 'ai_turn',
+        summary: `AI 请求失败：${summarizeText(message, 80)}`,
+        surface: 'ai_chat',
+      })
       appendMessage({ role: 'system', content: message })
     } finally {
       setBusy(false)
@@ -113,14 +157,39 @@ export function AIChatPanel({ open, onClose }: AIChatPanelProps) {
     const nextContents = [...contentsRef.current, userContent]
     contentsRef.current = nextContents
     appendMessage({ role: 'user', content: text })
+    trackBehaviorEvent({
+      actor: 'user',
+      eventName: 'ai.message_sent',
+      metadata: {
+        length: text.length,
+        messageSummary: summarizeText(text, 100),
+      },
+      objectType: 'ai_message',
+      summary: `发送 AI 消息：${summarizeText(text, 80)}`,
+      surface: 'ai_chat',
+    })
     setInput('')
     void runAgentLoop(nextContents)
   }
 
   function confirmPendingActions() {
     if (pendingActions.length === 0) return
-    applyPendingActions(pendingActions)
+    withBehaviorEventContext({ actor: 'assistant', surface: 'ai_chat' }, () => {
+      applyPendingActions(pendingActions)
+    })
     const count = pendingActions.length
+    trackBehaviorEvent({
+      actor: 'user',
+      eventName: 'ai.pending_actions_confirmed',
+      metadata: {
+        actionCount: count,
+        actionTypes: pendingActions.map((action) => action.type),
+        labels: pendingActions.map((action) => summarizeText(action.label, 80)),
+      },
+      objectType: 'pending_action',
+      summary: `确认执行 ${count} 项 AI 变更`,
+      surface: 'ai_chat',
+    })
     setPendingActions([])
     appendMessage({ role: 'assistant', content: `已执行 ${count} 项变更。` })
     contentsRef.current = [
@@ -135,6 +204,18 @@ export function AIChatPanel({ open, onClose }: AIChatPanelProps) {
   function cancelPendingActions() {
     if (pendingActions.length === 0) return
     const count = pendingActions.length
+    trackBehaviorEvent({
+      actor: 'user',
+      eventName: 'ai.pending_actions_cancelled',
+      metadata: {
+        actionCount: count,
+        actionTypes: pendingActions.map((action) => action.type),
+        labels: pendingActions.map((action) => summarizeText(action.label, 80)),
+      },
+      objectType: 'pending_action',
+      summary: `取消 ${count} 项 AI 待确认变更`,
+      surface: 'ai_chat',
+    })
     setPendingActions([])
     appendMessage({ role: 'assistant', content: `已取消 ${count} 项待确认变更。` })
     contentsRef.current = [

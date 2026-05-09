@@ -105,6 +105,29 @@ describe('dashboard AI foundations', () => {
     expect(context.notes[0].content).toContain('面试安排')
   })
 
+  it('moves completed scheduled tasks to the new visible date', () => {
+    resetStores([{ id: 'schedule-1', type: 'scheduled-todo' }])
+    useWidgetDataStore.setState({
+      scheduledTasksByWidget: {
+        'schedule-1': [
+          {
+            id: 'task-completed',
+            text: '已完成任务',
+            dueDate: '2026-05-08',
+            completed: true,
+            completedAt: '2026-05-08',
+          },
+        ],
+      },
+    })
+
+    useWidgetDataStore.getState().moveScheduledTaskToDate('schedule-1', 'task-completed', '2026-05-11')
+
+    const moved = useWidgetDataStore.getState().scheduledTasksByWidget['schedule-1'][0]
+    expect(moved.dueDate).toBe('2026-05-11')
+    expect(moved.completedAt).toBe('2026-05-11')
+  })
+
   it('returns a one-day ISO range for a local date key', () => {
     const range = getLocalDayIsoRange('2026-05-05')
     expect(new Date(range.timeMax).getTime() - new Date(range.timeMin).getTime()).toBe(86_400_000)

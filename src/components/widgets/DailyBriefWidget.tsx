@@ -4,6 +4,7 @@ import { toast } from 'sonner'
 import { connectGoogleCalendar, fetchCalendarEvents, fetchCalendarStatus, generateDailyBrief } from '@/lib/ai/api'
 import { buildBriefContext, getLocalDayIsoRange } from '@/lib/ai/briefContext'
 import type { CalendarEvent } from '@/lib/ai/types'
+import { summarizeText, trackBehaviorEvent } from '@/lib/behaviorEvents'
 import { useCloudSync } from '@/components/cloud/cloudSyncContext'
 import { useCurrentDayKey } from '@/hooks/useCurrentDayKey'
 import { useWidgetDataStore } from '@/store/widgetDataStore'
@@ -13,8 +14,6 @@ interface DailyBriefWidgetProps {
 }
 
 export function DailyBriefWidget({ widgetId: _widgetId }: DailyBriefWidgetProps) {
-  void _widgetId
-
   const { configured, user } = useCloudSync()
   const today = useCurrentDayKey()
   const brief = useWidgetDataStore((s) => s.dailyBriefsByDate[today])
@@ -28,9 +27,21 @@ export function DailyBriefWidget({ widgetId: _widgetId }: DailyBriefWidgetProps)
   useEffect(() => {
     if (!ready) return
     void fetchCalendarStatus()
-      .then((status) => setCalendarConnected(status.connected))
+      .then((status) => {
+        setCalendarConnected(status.connected)
+        trackBehaviorEvent({
+          actor: 'system',
+          eventName: 'daily_brief.calendar_status_loaded',
+          metadata: { connected: status.connected },
+          objectType: 'calendar_status',
+          summary: status.connected ? '每日简报读取到日历已连接' : '每日简报读取到日历未连接',
+          surface: 'widget',
+          widgetId: _widgetId,
+          widgetType: 'daily-brief',
+        })
+      })
       .catch(() => setCalendarConnected(false))
-  }, [ready])
+  }, [_widgetId, ready])
 
   const loadBrief = useCallback(async (force: boolean) => {
     if (!ready || loading) return
@@ -47,6 +58,16 @@ export function DailyBriefWidget({ widgetId: _widgetId }: DailyBriefWidgetProps)
         const calendar = await fetchCalendarEvents(range)
         connected = calendar.connected
         events = calendar.events
+        trackBehaviorEvent({
+          actor: 'system',
+          eventName: 'daily_brief.calendar_status_loaded',
+          metadata: { connected, eventCount: events.length },
+          objectType: 'calendar_status',
+          summary: `每日简报读取日历：${events.length} 个事件`,
+          surface: 'widget',
+          widgetId: _widgetId,
+          widgetType: 'daily-brief',
+        })
       } catch {
         connected = false
         events = []
@@ -68,10 +89,21 @@ export function DailyBriefWidget({ widgetId: _widgetId }: DailyBriefWidgetProps)
     } catch (err) {
       const message = err instanceof Error ? err.message : '每日简报生成失败'
       setError(message)
+      trackBehaviorEvent({
+        actor: 'system',
+        eventName: 'daily_brief.error',
+        metadata: { date: today, message: summarizeText(message, 120) },
+        objectId: today,
+        objectType: 'daily_brief',
+        summary: `每日简报失败：${summarizeText(message, 80)}`,
+        surface: 'widget',
+        widgetId: _widgetId,
+        widgetType: 'daily-brief',
+      })
     } finally {
       setLoading(false)
     }
-  }, [brief?.sourceFingerprint, loading, ready, setDailyBrief, today])
+  }, [_widgetId, brief?.sourceFingerprint, loading, ready, setDailyBrief, today])
 
   useEffect(() => {
     if (!ready || brief || loading) return
@@ -79,6 +111,15 @@ export function DailyBriefWidget({ widgetId: _widgetId }: DailyBriefWidgetProps)
   }, [brief, loadBrief, loading, ready])
 
   async function handleConnectCalendar() {
+    trackBehaviorEvent({
+      eventName: 'calendar.connect_requested',
+      metadata: { provider: 'google' },
+      objectType: 'calendar_connection',
+      summary: '请求连接 Google Calendar',
+      surface: 'widget',
+      widgetId: _widgetId,
+      widgetType: 'daily-brief',
+    })
     try {
       await connectGoogleCalendar()
     } catch (err) {

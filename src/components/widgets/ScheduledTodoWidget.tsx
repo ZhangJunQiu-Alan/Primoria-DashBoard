@@ -407,10 +407,10 @@ function TaskCard({
 }: TaskCardProps) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: `scheduled:${widgetId}:${task.id}`,
-    disabled: isEditing || task.completed,
+    disabled: isEditing,
     data: { widgetId, taskId: task.id, type: 'scheduled-task' },
   })
-  const canDrag = !isEditing && !task.completed
+  const canDrag = !isEditing
 
   const delayCount = getDelayCount(task, today)
   const palette = task.completed
@@ -799,7 +799,7 @@ export function ScheduledTodoWidget({ widgetId }: { widgetId: string }) {
   const canAcceptTimelineDrop =
     activeType === 'todo-item' || (activeType === 'scheduled-task' && activeWidgetId === widgetId)
   const pickerTask = taskPicker ? tasks.find((item) => item.id === taskPicker.id) ?? null : null
-  const activeTaskPicker = taskPicker && pickerTask && !pickerTask.completed
+  const activeTaskPicker = taskPicker && pickerTask
     ? taskPicker
     : null
 

@@ -18,6 +18,7 @@ import { toast } from 'sonner'
 import { useCloudSync } from '@/components/cloud/cloudSyncContext'
 import { useMusicUploader } from '@/hooks/useMusicUploader'
 import { getCachedAudioUrl, prefetchAudio, revokeAudioObjectUrl } from '@/lib/audioCache'
+import { summarizeText, trackBehaviorEvent } from '@/lib/behaviorEvents'
 import { formatDuration, formatPlaybackTime, type MusicTrackRow } from '@/lib/musicLibrary'
 import { useMusicStore } from '@/store/musicStore'
 
@@ -107,8 +108,37 @@ export function MusicPlayerWidget({ widgetId }: MusicPlayerWidgetProps) {
   useEffect(() => {
     function onTime() { setCurrentTime(audio.currentTime) }
     function onMeta() { setDuration(Number.isFinite(audio.duration) ? audio.duration : 0) }
-    function onPlay() { setIsPlaying(true) }
-    function onPause() { setIsPlaying(false) }
+    function onPlay() {
+      setIsPlaying(true)
+      const track = tracks.find((item) => item.id === currentTrackId)
+      trackBehaviorEvent({
+        eventName: 'music.playback_started',
+        metadata: { title: track ? summarizeText(track.title, 72) : null },
+        objectId: currentTrackId,
+        objectType: 'music_track',
+        summary: track ? `播放音乐：${summarizeText(track.title, 72)}` : '播放音乐',
+        surface: 'widget',
+        widgetId,
+        widgetType: 'music-player',
+      })
+    }
+    function onPause() {
+      setIsPlaying(false)
+      const track = tracks.find((item) => item.id === currentTrackId)
+      trackBehaviorEvent({
+        eventName: 'music.playback_paused',
+        metadata: {
+          currentTimeSec: Math.round(audio.currentTime),
+          title: track ? summarizeText(track.title, 72) : null,
+        },
+        objectId: currentTrackId,
+        objectType: 'music_track',
+        summary: track ? `暂停音乐：${summarizeText(track.title, 72)}` : '暂停音乐',
+        surface: 'widget',
+        widgetId,
+        widgetType: 'music-player',
+      })
+    }
     function onEnded() {
       setIsPlaying(false)
       if (tracks.length === 0) return

@@ -1,93 +1,65 @@
 # Primoria Dashboard
 
-Primoria Dashboard is now a pure React/Vite web app. It can run locally without an account, and can sync personal dashboard data through Supabase Auth + Postgres when configured.
+Primoria Dashboard 是一个可以直接在浏览器使用的个人工作台。它把日程、待办、习惯、笔记、专注计时、音乐和 AI 助手集中在同一个页面里，适合个人、自由职业者、小团队负责人用来管理每天的工作节奏。
 
-## Local Development
+项目已经改为纯 Web 应用，不需要安装桌面客户端。用户可以直接打开网页使用本地面板；登录后，个人数据可以同步到云端，在不同设备上继续使用。
 
-```bash
-pnpm install
-pnpm dev
-```
+## 适合的客户场景
 
-AI / Google Calendar features use Cloudflare Pages Functions under `/api/*`. For local AI testing, run the Pages dev server instead:
+- 想要一个简单、漂亮、可自定义的个人效率首页。
+- 希望把待办、日程、笔记和专注计时放在同一个页面，而不是分散到多个工具里。
+- 需要一个可以公开访问的网页版本，同时保留“未登录也能先使用”的低门槛体验。
+- 希望后续接入 AI 助手、Google Calendar、云端同步等能力。
 
-```bash
-pnpm dev:pages
-```
+## 主要功能
 
-Then open:
+- **自定义工作台**：自由添加、移动、重命名和删除组件，按自己的工作习惯布置页面。
+- **待办与日程任务**：支持普通待办、按日期规划任务，以及独立弹窗处理任务列表。
+- **习惯打卡**：记录每天的习惯完成情况，帮助用户保持稳定节奏。
+- **便签和格纸笔记**：快速记录想法、会议内容、灵感和临时信息。
+- **专注旅程**：用旅程式番茄钟记录专注时间，包含专注、休息和完成反馈。
+- **音乐播放器**：支持上传和管理个人音乐文件，作为工作时的背景音乐。
+- **Google Calendar**：可连接 Google 日历，在面板里查看近期安排。
+- **每日简报与 AI 助手**：登录并配置 AI 后，可以根据面板内容生成每日摘要，也可以直接询问任务、习惯、笔记和日程。
+- **云端同步**：登录后同步个人工作台、组件数据、背景图和音乐资料；未登录时仍可本地使用。
 
-```text
-http://127.0.0.1:8788/
-```
+## 用户体验
 
-`pnpm dev` only starts Vite at `http://127.0.0.1:5173/`, so `/api/ai/chat` is not available there.
+Primoria Dashboard 的默认状态是一个干净的空面板，用户不需要先注册账号就能开始使用。需要跨设备保存时再登录同步，减少首次使用阻力。
 
-Copy `.dev.vars.example` to `.dev.vars` and fill the server-side secrets for local Pages Functions. Keep `.dev.vars` uncommitted.
+界面以安静、柔和的工作台风格为主，重点放在长期使用的可读性和操作效率上。每个组件都是独立模块，后续可以继续扩展更多业务工具。
 
-Production build:
+## 数据与隐私
 
-```bash
-pnpm build
-pnpm preview
-```
+- 未登录时，数据保存在当前浏览器本地。
+- 登录后，个人数据通过 Supabase Auth、Postgres 和 Storage 同步。
+- 云端数据按用户隔离，每个用户只能访问自己的面板数据。
+- 服务端密钥只用于 Cloudflare Pages Functions，不会暴露到前端页面。
 
-## Supabase Free Cloud Sync
+## 当前线上地址
 
-Create a Supabase project on the Free plan, then run the SQL migration in:
-
-```text
-supabase/migrations/20260504120000_dashboard_web_sync.sql
-```
-
-The migration creates:
-
-- `public.dashboard_snapshots` for per-user dashboard state.
-- Row Level Security policies so users can only read/write their own snapshot.
-- A private `dashboard-assets` Storage bucket for wallpaper images.
-- Storage policies that isolate files under each user's `auth.uid()` folder.
-
-Create a personal user first, then disable public signups in Supabase Auth settings if this dashboard is only for you.
-
-Set these environment variables locally and in Cloudflare Pages:
-
-```bash
-VITE_SUPABASE_URL=your-project-url
-VITE_SUPABASE_ANON_KEY=your-anon-key
-```
-
-You can copy `.env.example` to `.env` for local development. Never commit `.env`.
-
-If these variables are missing, the app still works in local-only mode.
-
-## Cloudflare Pages Deployment
-
-Use Cloudflare Pages for the free public URL.
-
-Build settings:
-
-- Framework preset: `Vite`
-- Build command: `pnpm build`
-- Build output directory: `dist`
-- Environment variables: `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`
-
-The deployed app will be available at a free `*.pages.dev` URL unless you later attach a custom domain.
-
-Current manual deployment target:
-
-```bash
-pnpm build
-npx wrangler pages deploy dist --project-name primoria-dashboard --branch main
-```
-
-Production URL:
+生产访问地址：
 
 ```text
 https://primoria-dashboard.pages.dev
 ```
 
-## Free-Tier Notes
+## 维护信息
 
-- Cloudflare Pages is used only for static assets. The app build output is small and fits the Pages Free plan asset limits.
-- Supabase Free is expected to be enough for personal dashboard sync, but it is not unlimited. Keep wallpapers under 5 MB and clean unused data if you approach free limits.
-- The old Tauri desktop shell and local NetEase backend were removed. The NetEase widget is intentionally degraded in the web version and links out to NetEase Music instead of storing third-party cookies or proxying playback.
+本项目使用 React、TypeScript、Vite、Cloudflare Pages 和 Supabase 构建。常用维护命令：
+
+```bash
+pnpm install
+pnpm dev
+pnpm build
+pnpm test
+pnpm lint
+```
+
+本地测试 AI 和 Google Calendar 接口时使用 Cloudflare Pages Functions 开发模式：
+
+```bash
+pnpm dev:pages
+```
+
+需要配置的本地和线上环境变量可参考 `.env.example` 与 `.dev.vars.example`。

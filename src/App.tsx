@@ -13,6 +13,7 @@ import { useGoogleCalendarTokenCapture } from '@/hooks/useGoogleCalendarTokenCap
 import { useWidgetDataStoreSync } from '@/hooks/useWidgetDataStoreSync'
 import { useFocusJourneyDriver } from '@/hooks/useFocusJourneyDriver'
 import { sweepExpiredAudio } from '@/lib/audioCache'
+import { trackBehaviorEvent } from '@/lib/behaviorEvents'
 import { ALLOWED_BACKGROUND_IMAGE_TYPES, MAX_BACKGROUND_IMAGE_BYTES } from '@/lib/cloudSnapshots'
 import { migrateLegacyNotesToWidgetStore } from '@/lib/notesMigration'
 import { useBackgroundStore } from '@/store/backgroundStore'
@@ -70,6 +71,20 @@ function DashboardApp() {
     }
     reader.readAsDataURL(file)
     e.target.value = ''
+  }
+
+  function toggleUiVisible() {
+    setUiVisible((visible) => {
+      const nextVisible = !visible
+      trackBehaviorEvent({
+        eventName: 'dashboard.ui_visibility_changed',
+        metadata: { visible: nextVisible },
+        objectType: 'dashboard_controls',
+        summary: nextVisible ? '显示 Dashboard 控制区' : '隐藏 Dashboard 控制区',
+        surface: 'dashboard',
+      })
+      return nextVisible
+    })
   }
 
   return (
@@ -189,7 +204,7 @@ function DashboardApp() {
 
         {/* 眼睛按钮 — 始终可见 */}
         <button
-          onClick={() => setUiVisible((v) => !v)}
+          onClick={toggleUiVisible}
           className="btn-ghost-hover flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium transition-all"
           style={{
             color: uiVisible ? 'var(--text-sub)' : 'var(--primary-dark)',

@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { persist, createJSONStorage } from 'zustand/middleware'
 import { dropCachedAudio } from '@/lib/audioCache'
+import { summarizeText, trackBehaviorEvent } from '@/lib/behaviorEvents'
 import {
   computeUsageBytes,
   createSignedUrl,
@@ -90,6 +91,19 @@ export const useMusicStore = create<MusicState>()(
           tracks: [...state.tracks, row],
           usageBytes: state.usageBytes + row.size_bytes,
         }))
+        trackBehaviorEvent({
+          eventName: 'music.track_uploaded',
+          metadata: {
+            durationMs: row.duration_ms,
+            fileSize: row.size_bytes,
+            title: summarizeText(row.title, 72),
+          },
+          objectId: row.id,
+          objectType: 'music_track',
+          summary: `上传音乐：${summarizeText(row.title, 72)}`,
+          surface: 'widget',
+          widgetType: 'music-player',
+        })
         return row
       },
 
@@ -112,6 +126,19 @@ export const useMusicStore = create<MusicState>()(
             coverSignedUrls: coverRest,
             currentTrackByWidget: nextCurrents,
           }
+        })
+        trackBehaviorEvent({
+          eventName: 'music.track_removed',
+          metadata: {
+            durationMs: track.duration_ms,
+            fileSize: track.size_bytes,
+            title: summarizeText(track.title, 72),
+          },
+          objectId: track.id,
+          objectType: 'music_track',
+          summary: `删除音乐：${summarizeText(track.title, 72)}`,
+          surface: 'widget',
+          widgetType: 'music-player',
         })
       },
 
@@ -142,10 +169,25 @@ export const useMusicStore = create<MusicState>()(
         return url
       },
 
-      setCurrentTrack: (widgetId, trackId) =>
+      setCurrentTrack: (widgetId, trackId) => {
+        const track = trackId ? get().tracks.find((item) => item.id === trackId) : null
         set((state) => ({
           currentTrackByWidget: { ...state.currentTrackByWidget, [widgetId]: trackId },
-        })),
+        }))
+        trackBehaviorEvent({
+          eventName: 'music.track_selected',
+          metadata: {
+            hasTrack: Boolean(trackId),
+            title: track ? summarizeText(track.title, 72) : null,
+          },
+          objectId: trackId,
+          objectType: 'music_track',
+          summary: track ? `选择音乐：${summarizeText(track.title, 72)}` : '清空当前音乐',
+          surface: 'widget',
+          widgetId,
+          widgetType: 'music-player',
+        })
+      },
     }),
     {
       name: PERSIST_KEY,

@@ -20,7 +20,7 @@ const WIDGET_DEFS: WidgetDef[] = [
   { type: 'todo', name: '待办事项', description: '管理每日任务', icon: CheckSquare, category: '效率' },
   { type: 'focus-journey', name: '番茄钟', description: '徒步登山式专注：累计 20 小时登顶一次', icon: Mountain, category: '效率' },
   { type: 'google-calendar', name: 'Google 日历', description: '嵌入 Google Calendar 日历', icon: CalendarDays, category: '效率' },
-  { type: 'music-player', name: '网易云播放器', description: '黑胶风格的网易云音乐播放卡片', icon: Disc3, category: '娱乐' },
+  { type: 'music-player', name: '音乐播放器', description: '上传和管理个人音乐，黑胶风格播放', icon: Disc3, category: '娱乐' },
   { type: 'habits', name: '习惯打卡', description: '追踪每日习惯，查看近 7 天', icon: ListChecks, category: '效率' },
   { type: 'scheduled-todo', name: '日程任务', description: '横向日期时间轴，可拖拽任务吸附到不同日期', icon: CalendarClock, category: '效率' },
   { type: 'daily-brief', name: '每日简报', description: '读取日程、待办、习惯和笔记生成当天建议', icon: Sparkles, category: 'AI' },

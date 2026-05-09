@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
+import { getDomainFromUrl, summarizeText, trackBehaviorEvent } from '@/lib/behaviorEvents'
 import { formatLocalDateKey } from '@/lib/date'
 
 export interface QuickLink {
@@ -130,6 +131,10 @@ const today = () => formatLocalDateKey()
 const makeId = () => `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
 const makeLinedNotePageId = () => `lined-note-page-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
 
+function shortText(value: string) {
+  return summarizeText(value, 72)
+}
+
 export function createLinedNotesDocument(initialContent = ''): LinedNotesDocument {
   const firstPage = { id: makeLinedNotePageId(), content: initialContent }
   return {
@@ -189,46 +194,167 @@ export const useWidgetDataStore = create<WidgetDataState>()(
         { id: '1', title: 'GitHub', url: 'https://github.com' },
         { id: '2', title: 'Google', url: 'https://google.com' },
       ],
-      addQuickLink: (link) =>
-        set((s) => ({ quickLinks: [...s.quickLinks, { ...link, id: makeId() }] })),
-      removeQuickLink: (id) =>
-        set((s) => ({ quickLinks: s.quickLinks.filter((l) => l.id !== id) })),
+      addQuickLink: (link) => {
+        const id = makeId()
+        set((s) => ({ quickLinks: [...s.quickLinks, { ...link, id }] }))
+        trackBehaviorEvent({
+          eventName: 'quick_link.added',
+          metadata: {
+            domain: getDomainFromUrl(link.url),
+            hasCustomIcon: Boolean(link.iconUrl),
+            title: shortText(link.title),
+          },
+          objectId: id,
+          objectType: 'quick_link',
+          summary: `添加快速链接：${shortText(link.title)}`,
+          surface: 'widget',
+          widgetType: 'quick-links',
+        })
+      },
+      removeQuickLink: (id) => {
+        const link = get().quickLinks.find((item) => item.id === id)
+        set((s) => ({ quickLinks: s.quickLinks.filter((l) => l.id !== id) }))
+        if (link) {
+          trackBehaviorEvent({
+            eventName: 'quick_link.removed',
+            metadata: {
+              domain: getDomainFromUrl(link.url),
+              title: shortText(link.title),
+            },
+            objectId: id,
+            objectType: 'quick_link',
+            summary: `删除快速链接：${shortText(link.title)}`,
+            surface: 'widget',
+            widgetType: 'quick-links',
+          })
+        }
+      },
 
       todosByWidget: {},
-      addTodo: (widgetId, text) =>
+      addTodo: (widgetId, text) => {
+        const id = makeId()
         set((s) =>
           updateList(s.todosByWidget, widgetId, (list) => [
             ...list,
-            { id: makeId(), text, done: false, createdAt: Date.now() },
+            { id, text, done: false, createdAt: Date.now() },
           ])
-        ),
-      toggleTodo: (widgetId, id) =>
+        )
+        trackBehaviorEvent({
+          eventName: 'todo.added',
+          metadata: { textLength: text.length, textSummary: shortText(text) },
+          objectId: id,
+          objectType: 'todo',
+          summary: `新增待办：${shortText(text)}`,
+          surface: 'widget',
+          widgetId,
+          widgetType: 'todo',
+        })
+      },
+      toggleTodo: (widgetId, id) => {
+        const todo = get().todosByWidget[widgetId]?.find((item) => item.id === id)
         set((s) =>
           updateList(s.todosByWidget, widgetId, (list) =>
             list.map((t) => (t.id === id ? { ...t, done: !t.done } : t))
           )
-        ),
-      removeTodo: (widgetId, id) =>
+        )
+        if (todo) {
+          trackBehaviorEvent({
+            eventName: 'todo.toggled',
+            metadata: {
+              completed: !todo.done,
+              textLength: todo.text.length,
+              textSummary: shortText(todo.text),
+            },
+            objectId: id,
+            objectType: 'todo',
+            summary: `${todo.done ? '取消完成' : '完成'}待办：${shortText(todo.text)}`,
+            surface: 'widget',
+            widgetId,
+            widgetType: 'todo',
+          })
+        }
+      },
+      removeTodo: (widgetId, id) => {
+        const todo = get().todosByWidget[widgetId]?.find((item) => item.id === id)
         set((s) =>
           updateList(s.todosByWidget, widgetId, (list) => list.filter((t) => t.id !== id))
-        ),
-      renameTodo: (widgetId, id, text) =>
+        )
+        if (todo) {
+          trackBehaviorEvent({
+            eventName: 'todo.removed',
+            metadata: { completed: todo.done, textLength: todo.text.length, textSummary: shortText(todo.text) },
+            objectId: id,
+            objectType: 'todo',
+            summary: `删除待办：${shortText(todo.text)}`,
+            surface: 'widget',
+            widgetId,
+            widgetType: 'todo',
+          })
+        }
+      },
+      renameTodo: (widgetId, id, text) => {
+        const todo = get().todosByWidget[widgetId]?.find((item) => item.id === id)
         set((s) =>
           updateList(s.todosByWidget, widgetId, (list) =>
             list.map((t) => (t.id === id ? { ...t, text } : t))
           )
-        ),
-      clearDoneTodos: (widgetId) =>
+        )
+        if (todo) {
+          trackBehaviorEvent({
+            eventName: 'todo.renamed',
+            metadata: {
+              nextLength: text.length,
+              nextSummary: shortText(text),
+              previousLength: todo.text.length,
+              previousSummary: shortText(todo.text),
+            },
+            objectId: id,
+            objectType: 'todo',
+            summary: `编辑待办：${shortText(todo.text)} -> ${shortText(text)}`,
+            surface: 'widget',
+            widgetId,
+            widgetType: 'todo',
+          })
+        }
+      },
+      clearDoneTodos: (widgetId) => {
+        const doneCount = (get().todosByWidget[widgetId] ?? []).filter((todo) => todo.done).length
         set((s) =>
           updateList(s.todosByWidget, widgetId, (list) => list.filter((t) => !t.done))
-        ),
-      markAllDone: (widgetId) =>
+        )
+        if (doneCount > 0) {
+          trackBehaviorEvent({
+            eventName: 'todo.cleared_completed',
+            metadata: { doneCount },
+            objectType: 'todo',
+            summary: `清理已完成待办：${doneCount} 项`,
+            surface: 'widget',
+            widgetId,
+            widgetType: 'todo',
+          })
+        }
+      },
+      markAllDone: (widgetId) => {
+        const openCount = (get().todosByWidget[widgetId] ?? []).filter((todo) => !todo.done).length
         set((s) =>
           updateList(s.todosByWidget, widgetId, (list) =>
             list.map((t) => ({ ...t, done: true }))
           )
-        ),
-      reorderTodos: (widgetId, fromIndex, toIndex) =>
+        )
+        if (openCount > 0) {
+          trackBehaviorEvent({
+            eventName: 'todo.marked_all_done',
+            metadata: { openCount },
+            objectType: 'todo',
+            summary: `全部完成待办：${openCount} 项`,
+            surface: 'widget',
+            widgetId,
+            widgetType: 'todo',
+          })
+        }
+      },
+      reorderTodos: (widgetId, fromIndex, toIndex) => {
+        const todo = get().todosByWidget[widgetId]?.[fromIndex]
         set((s) =>
           updateList(s.todosByWidget, widgetId, (list) => {
             const next = [...list]
@@ -236,8 +362,26 @@ export const useWidgetDataStore = create<WidgetDataState>()(
             next.splice(toIndex, 0, moved)
             return next
           })
-        ),
-      moveTodo: (fromWidgetId, toWidgetId, todoId, toIndex) =>
+        )
+        trackBehaviorEvent({
+          eventName: 'todo.reordered',
+          metadata: {
+            fromIndex,
+            textSummary: todo ? shortText(todo.text) : null,
+            toIndex,
+          },
+          objectId: todo?.id ?? null,
+          objectType: 'todo',
+          summary: todo
+            ? `调整待办顺序：${shortText(todo.text)}`
+            : `调整待办顺序：${fromIndex + 1} -> ${toIndex + 1}`,
+          surface: 'widget',
+          widgetId,
+          widgetType: 'todo',
+        })
+      },
+      moveTodo: (fromWidgetId, toWidgetId, todoId, toIndex) => {
+        const todo = get().todosByWidget[fromWidgetId]?.find((item) => item.id === todoId)
         set((s) => {
           const fromList = [...(s.todosByWidget[fromWidgetId] ?? [])]
           const todo = fromList.find((t) => t.id === todoId)
@@ -252,18 +396,48 @@ export const useWidgetDataStore = create<WidgetDataState>()(
               [toWidgetId]: toList,
             },
           }
-        }),
+        })
+        trackBehaviorEvent({
+          eventName: 'todo.moved',
+          metadata: {
+            fromWidgetId,
+            textLength: todo?.text.length ?? 0,
+            textSummary: todo ? shortText(todo.text) : null,
+            toIndex,
+            toWidgetId,
+          },
+          objectId: todoId,
+          objectType: 'todo',
+          summary: todo ? `移动待办：${shortText(todo.text)}` : '移动待办',
+          surface: 'widget',
+          widgetId: toWidgetId,
+          widgetType: 'todo',
+        })
+      },
 
       habitsByWidget: {},
       habitLogs: {},
-      addHabit: (widgetId, name) =>
+      addHabit: (widgetId, name) => {
+        const id = makeId()
         set((s) => ({
           habitsByWidget: {
             ...s.habitsByWidget,
-            [widgetId]: [...(s.habitsByWidget[widgetId] ?? []), { id: makeId(), name }],
+            [widgetId]: [...(s.habitsByWidget[widgetId] ?? []), { id, name }],
           },
-        })),
-      removeHabit: (widgetId, id) =>
+        }))
+        trackBehaviorEvent({
+          eventName: 'habit.added',
+          metadata: { name: shortText(name) },
+          objectId: id,
+          objectType: 'habit',
+          summary: `新增习惯：${shortText(name)}`,
+          surface: 'widget',
+          widgetId,
+          widgetType: 'habits',
+        })
+      },
+      removeHabit: (widgetId, id) => {
+        const habit = get().habitsByWidget[widgetId]?.find((item) => item.id === id)
         set((s) => {
           const habitLogs = { ...s.habitLogs }
           delete habitLogs[id]
@@ -274,8 +448,22 @@ export const useWidgetDataStore = create<WidgetDataState>()(
             },
             habitLogs,
           }
-        }),
-      renameHabit: (widgetId, id, name) =>
+        })
+        if (habit) {
+          trackBehaviorEvent({
+            eventName: 'habit.removed',
+            metadata: { name: shortText(habit.name) },
+            objectId: id,
+            objectType: 'habit',
+            summary: `删除习惯：${shortText(habit.name)}`,
+            surface: 'widget',
+            widgetId,
+            widgetType: 'habits',
+          })
+        }
+      },
+      renameHabit: (widgetId, id, name) => {
+        const habit = get().habitsByWidget[widgetId]?.find((item) => item.id === id)
         set((s) => ({
           habitsByWidget: {
             ...s.habitsByWidget,
@@ -283,8 +471,23 @@ export const useWidgetDataStore = create<WidgetDataState>()(
               h.id === id ? { ...h, name } : h
             ),
           },
-        })),
-      toggleHabitLog: (habitId, date) =>
+        }))
+        if (habit) {
+          trackBehaviorEvent({
+            eventName: 'habit.renamed',
+            metadata: { nextName: shortText(name), previousName: shortText(habit.name) },
+            objectId: id,
+            objectType: 'habit',
+            summary: `编辑习惯：${shortText(habit.name)} -> ${shortText(name)}`,
+            surface: 'widget',
+            widgetId,
+            widgetType: 'habits',
+          })
+        }
+      },
+      toggleHabitLog: (habitId, date) => {
+        const existingBefore = get().habitLogs[habitId] ?? []
+        const checked = !existingBefore.includes(date)
         set((s) => {
           const existing = s.habitLogs[habitId] ?? []
           const has = existing.includes(date)
@@ -294,16 +497,47 @@ export const useWidgetDataStore = create<WidgetDataState>()(
               [habitId]: has ? existing.filter((d) => d !== date) : [...existing, date],
             },
           }
-        }),
+        })
+        const habitEntry = Object.entries(get().habitsByWidget).flatMap(([widgetId, habits]) =>
+          habits
+            .filter((habit) => habit.id === habitId)
+            .map((habit) => ({ habit, widgetId }))
+        )[0]
+        trackBehaviorEvent({
+          eventName: 'habit.log_updated',
+          metadata: {
+            checked,
+            date,
+            habitName: habitEntry ? shortText(habitEntry.habit.name) : null,
+          },
+          objectId: habitId,
+          objectType: 'habit',
+          summary: `${checked ? '完成' : '取消'}习惯打卡：${date}`,
+          surface: 'widget',
+          widgetId: habitEntry?.widgetId ?? null,
+          widgetType: 'habits',
+        })
+      },
 
       calendarEmbeds: {},
-      setCalendarEmbed: (widgetId, code) =>
-        set((s) => ({ calendarEmbeds: { ...s.calendarEmbeds, [widgetId]: code } })),
+      setCalendarEmbed: (widgetId, code) => {
+        set((s) => ({ calendarEmbeds: { ...s.calendarEmbeds, [widgetId]: code } }))
+        trackBehaviorEvent({
+          eventName: 'calendar.embed_saved',
+          metadata: { embedLength: code.length },
+          objectId: widgetId,
+          objectType: 'calendar_embed',
+          summary: '保存 Google 日历嵌入',
+          surface: 'widget',
+          widgetId,
+          widgetType: 'google-calendar',
+        })
+      },
 
       notesByWidget: {},
       setNote: (widgetId, content) =>
         set((s) => ({ notesByWidget: { ...s.notesByWidget, [widgetId]: content } })),
-      appendNote: (widgetId, content) =>
+      appendNote: (widgetId, content) => {
         set((s) => {
           const current = s.notesByWidget[widgetId] ?? ''
           const separator = current.trim() && content.trim() ? '\n\n' : ''
@@ -313,7 +547,21 @@ export const useWidgetDataStore = create<WidgetDataState>()(
               [widgetId]: `${current}${separator}${content}`,
             },
           }
-        }),
+        })
+        trackBehaviorEvent({
+          eventName: 'note.appended',
+          metadata: {
+            appendedLength: content.length,
+            contentSummary: shortText(content),
+          },
+          objectId: widgetId,
+          objectType: 'note',
+          summary: `追加便签：${shortText(content)}`,
+          surface: 'widget',
+          widgetId,
+          widgetType: 'notes',
+        })
+      },
 
       linedNotesByWidget: {},
       setLinedNotesDocument: (widgetId, document) =>
@@ -323,7 +571,7 @@ export const useWidgetDataStore = create<WidgetDataState>()(
             [widgetId]: normalizeLinedNotesDocument(document),
           },
         })),
-      appendLinedNote: (widgetId, content) =>
+      appendLinedNote: (widgetId, content) => {
         set((s) => {
           const document = normalizeLinedNotesDocument(
             s.linedNotesByWidget[widgetId] ?? createLinedNotesDocument()
@@ -347,20 +595,48 @@ export const useWidgetDataStore = create<WidgetDataState>()(
               },
             },
           }
-        }),
+        })
+        trackBehaviorEvent({
+          eventName: 'note.appended',
+          metadata: {
+            appendedLength: content.length,
+            contentSummary: shortText(content),
+            target: 'lined-notes',
+          },
+          objectId: widgetId,
+          objectType: 'lined_note',
+          summary: `追加格纸笔记：${shortText(content)}`,
+          surface: 'widget',
+          widgetId,
+          widgetType: 'lined-notes',
+        })
+      },
 
       scheduledTasksByWidget: {},
-      addScheduledTask: (widgetId, text, dueDate) =>
+      addScheduledTask: (widgetId, text, dueDate) => {
+        const id = makeId()
         set((s) => ({
           scheduledTasksByWidget: {
             ...s.scheduledTasksByWidget,
             [widgetId]: [
               ...(s.scheduledTasksByWidget[widgetId] ?? []),
-              { id: makeId(), text, dueDate, completed: false, completedAt: null },
+              { id, text, dueDate, completed: false, completedAt: null },
             ],
           },
-        })),
-      toggleScheduledTask: (widgetId, id) =>
+        }))
+        trackBehaviorEvent({
+          eventName: 'scheduled_task.added',
+          metadata: { dueDate, textLength: text.length, textSummary: shortText(text) },
+          objectId: id,
+          objectType: 'scheduled_task',
+          summary: `新增日程任务：${shortText(text)}`,
+          surface: 'widget',
+          widgetId,
+          widgetType: 'scheduled-todo',
+        })
+      },
+      toggleScheduledTask: (widgetId, id) => {
+        const task = get().scheduledTasksByWidget[widgetId]?.find((item) => item.id === id)
         set((s) => {
           const todayStr = today()
           return {
@@ -377,15 +653,53 @@ export const useWidgetDataStore = create<WidgetDataState>()(
               ),
             },
           }
-        }),
-      removeScheduledTask: (widgetId, id) =>
+        })
+        if (task) {
+          trackBehaviorEvent({
+            eventName: 'scheduled_task.toggled',
+            metadata: {
+              completed: !task.completed,
+              dueDate: task.dueDate,
+              textLength: task.text.length,
+              textSummary: shortText(task.text),
+            },
+            objectId: id,
+            objectType: 'scheduled_task',
+            summary: `${task.completed ? '取消完成' : '完成'}日程任务：${shortText(task.text)}`,
+            surface: 'widget',
+            widgetId,
+            widgetType: 'scheduled-todo',
+          })
+        }
+      },
+      removeScheduledTask: (widgetId, id) => {
+        const task = get().scheduledTasksByWidget[widgetId]?.find((item) => item.id === id)
         set((s) => ({
           scheduledTasksByWidget: {
             ...s.scheduledTasksByWidget,
             [widgetId]: (s.scheduledTasksByWidget[widgetId] ?? []).filter((t) => t.id !== id),
           },
-        })),
-      updateScheduledTask: (widgetId, id, updates) =>
+        }))
+        if (task) {
+          trackBehaviorEvent({
+            eventName: 'scheduled_task.removed',
+            metadata: {
+              completed: task.completed,
+              dueDate: task.dueDate,
+              textLength: task.text.length,
+              textSummary: shortText(task.text),
+            },
+            objectId: id,
+            objectType: 'scheduled_task',
+            summary: `删除日程任务：${shortText(task.text)}`,
+            surface: 'widget',
+            widgetId,
+            widgetType: 'scheduled-todo',
+          })
+        }
+      },
+      updateScheduledTask: (widgetId, id, updates) => {
+        const task = get().scheduledTasksByWidget[widgetId]?.find((item) => item.id === id)
         set((s) => ({
           scheduledTasksByWidget: {
             ...s.scheduledTasksByWidget,
@@ -393,8 +707,29 @@ export const useWidgetDataStore = create<WidgetDataState>()(
               t.id === id ? { ...t, ...updates } : t
             ),
           },
-        })),
-      moveTodoToScheduledDate: (fromWidgetId, todoId, scheduledWidgetId, dueDate) =>
+        }))
+        if (task) {
+          trackBehaviorEvent({
+            eventName: 'scheduled_task.updated',
+            metadata: {
+              nextDueDate: updates.dueDate ?? task.dueDate,
+              nextTextSummary: updates.text ? shortText(updates.text) : null,
+              previousDueDate: task.dueDate,
+              previousTextSummary: shortText(task.text),
+              updatedFields: Object.keys(updates),
+            },
+            objectId: id,
+            objectType: 'scheduled_task',
+            summary: `编辑日程任务：${shortText(task.text)}`,
+            surface: 'widget',
+            widgetId,
+            widgetType: 'scheduled-todo',
+          })
+        }
+      },
+      moveTodoToScheduledDate: (fromWidgetId, todoId, scheduledWidgetId, dueDate) => {
+        const todo = get().todosByWidget[fromWidgetId]?.find((item) => item.id === todoId)
+        const nextTaskId = makeId()
         set((s) => {
           const fromList = [...(s.todosByWidget[fromWidgetId] ?? [])]
           const todo = fromList.find((t) => t.id === todoId)
@@ -410,7 +745,7 @@ export const useWidgetDataStore = create<WidgetDataState>()(
               [scheduledWidgetId]: [
                 ...(s.scheduledTasksByWidget[scheduledWidgetId] ?? []),
                 {
-                  id: makeId(),
+                  id: nextTaskId,
                   text: todo.text,
                   dueDate,
                   completed: todo.done,
@@ -419,17 +754,59 @@ export const useWidgetDataStore = create<WidgetDataState>()(
               ],
             },
           }
-        }),
-      moveScheduledTaskToDate: (widgetId, taskId, dueDate) =>
+        })
+        if (todo) {
+          trackBehaviorEvent({
+            eventName: 'scheduled_task.added',
+            metadata: {
+              dueDate,
+              fromTodoId: todoId,
+              fromWidgetId,
+              textLength: todo.text.length,
+              textSummary: shortText(todo.text),
+            },
+            objectId: nextTaskId,
+            objectType: 'scheduled_task',
+            summary: `待办转为日程任务：${shortText(todo.text)}`,
+            surface: 'widget',
+            widgetId: scheduledWidgetId,
+            widgetType: 'scheduled-todo',
+          })
+        }
+      },
+      moveScheduledTaskToDate: (widgetId, taskId, dueDate) => {
+        const task = get().scheduledTasksByWidget[widgetId]?.find((item) => item.id === taskId)
         set((s) => ({
           scheduledTasksByWidget: {
             ...s.scheduledTasksByWidget,
             [widgetId]: (s.scheduledTasksByWidget[widgetId] ?? []).map((t) =>
-              t.id === taskId && !t.completed ? { ...t, dueDate } : t
+              t.id === taskId
+                ? { ...t, dueDate, completedAt: t.completed ? dueDate : t.completedAt }
+                : t
             ),
           },
-        })),
-      moveScheduledTaskToTodo: (scheduledWidgetId, taskId, todoWidgetId, toIndex) =>
+        }))
+        if (task) {
+          trackBehaviorEvent({
+            eventName: 'scheduled_task.moved',
+            metadata: {
+              fromDueDate: task.dueDate,
+              textLength: task.text.length,
+              textSummary: shortText(task.text),
+              toDueDate: dueDate,
+            },
+            objectId: taskId,
+            objectType: 'scheduled_task',
+            summary: `移动日程任务：${shortText(task.text)}`,
+            surface: 'widget',
+            widgetId,
+            widgetType: 'scheduled-todo',
+          })
+        }
+      },
+      moveScheduledTaskToTodo: (scheduledWidgetId, taskId, todoWidgetId, toIndex) => {
+        const task = get().scheduledTasksByWidget[scheduledWidgetId]?.find((item) => item.id === taskId)
+        const nextTodoId = makeId()
         set((s) => {
           const fromList = s.scheduledTasksByWidget[scheduledWidgetId] ?? []
           const task = fromList.find((t) => t.id === taskId)
@@ -438,7 +815,7 @@ export const useWidgetDataStore = create<WidgetDataState>()(
           const targetTodos = [...(s.todosByWidget[todoWidgetId] ?? [])]
           const insertAt = Math.max(0, Math.min(toIndex, targetTodos.length))
           targetTodos.splice(insertAt, 0, {
-            id: makeId(),
+            id: nextTodoId,
             text: task.text,
             done: task.completed,
             createdAt: Date.now(),
@@ -454,7 +831,26 @@ export const useWidgetDataStore = create<WidgetDataState>()(
               [todoWidgetId]: targetTodos,
             },
           }
-        }),
+        })
+        if (task) {
+          trackBehaviorEvent({
+            eventName: 'todo.added',
+            metadata: {
+              fromScheduledTaskId: taskId,
+              fromWidgetId: scheduledWidgetId,
+              textLength: task.text.length,
+              textSummary: shortText(task.text),
+              toIndex,
+            },
+            objectId: nextTodoId,
+            objectType: 'todo',
+            summary: `日程任务转为待办：${shortText(task.text)}`,
+            surface: 'widget',
+            widgetId: todoWidgetId,
+            widgetType: 'todo',
+          })
+        }
+      },
 
       pomodoro: { totalSessions: 0, todaySessions: 0, lastSessionDate: today() },
       incrementPomodoro: () => {
@@ -463,17 +859,53 @@ export const useWidgetDataStore = create<WidgetDataState>()(
         const todaySessions =
           pomodoro.lastSessionDate === todayStr ? pomodoro.todaySessions + 1 : 1
         set({ pomodoro: { totalSessions: pomodoro.totalSessions + 1, todaySessions, lastSessionDate: todayStr } })
+        trackBehaviorEvent({
+          eventName: 'pomodoro.completed',
+          metadata: { todaySessions, totalSessions: pomodoro.totalSessions + 1 },
+          objectType: 'pomodoro_session',
+          summary: '完成一次番茄钟',
+          surface: 'widget',
+          widgetType: 'focus-journey',
+        })
       },
 
       dailyBriefsByDate: {},
-      setDailyBrief: (brief) =>
-        set((s) => ({ dailyBriefsByDate: { ...s.dailyBriefsByDate, [brief.date]: brief } })),
-      removeDailyBrief: (date) =>
+      setDailyBrief: (brief) => {
+        set((s) => ({ dailyBriefsByDate: { ...s.dailyBriefsByDate, [brief.date]: brief } }))
+        trackBehaviorEvent({
+          eventName: 'daily_brief.generated',
+          metadata: {
+            calendarConnected: brief.calendarConnected,
+            date: brief.date,
+            recommendationLength: brief.recommendation.length,
+            summaryLength: brief.summary.length,
+          },
+          objectId: brief.date,
+          objectType: 'daily_brief',
+          summary: `生成每日简报：${brief.date}`,
+          surface: 'widget',
+          widgetType: 'daily-brief',
+        })
+      },
+      removeDailyBrief: (date) => {
+        const existed = Boolean(get().dailyBriefsByDate[date])
         set((s) => {
           const dailyBriefsByDate = { ...s.dailyBriefsByDate }
           delete dailyBriefsByDate[date]
           return { dailyBriefsByDate }
-        }),
+        })
+        if (existed) {
+          trackBehaviorEvent({
+            eventName: 'daily_brief.refresh_requested',
+            metadata: { date },
+            objectId: date,
+            objectType: 'daily_brief',
+            summary: `刷新每日简报：${date}`,
+            surface: 'widget',
+            widgetType: 'daily-brief',
+          })
+        }
+      },
     }),
     { name: WIDGET_DATA_STORAGE_KEY }
   )
