@@ -149,16 +149,18 @@ export async function connectGoogleCalendar() {
   const { data: sessionData } = await supabase.auth.getSession()
   if (!sessionData.session) throw new Error('请先登录后再连接 Google Calendar。')
 
-  const linkIdentity = supabase.auth.linkIdentity as unknown as (credentials: {
-    provider: 'google'
-    options: {
-      queryParams: Record<string, string>
-      redirectTo: string
-      scopes: string
-    }
-  }) => Promise<{ error: Error | null }>
+  const auth = supabase.auth as typeof supabase.auth & {
+    linkIdentity: (credentials: {
+      provider: 'google'
+      options: {
+        queryParams: Record<string, string>
+        redirectTo: string
+        scopes: string
+      }
+    }) => Promise<{ error: Error | null }>
+  }
 
-  const { error } = await linkIdentity({
+  const { error } = await auth.linkIdentity({
     provider: 'google',
     options: {
       queryParams: {
