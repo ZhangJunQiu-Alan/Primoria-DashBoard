@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { AlertCircle, Bot, CalendarClock, Check, LoaderCircle, Send, Sparkles, X } from 'lucide-react'
 import { applyPendingActions, executeDashboardTool } from '@/lib/ai/dashboardTools'
 import { generateAssistantReflection, sendAgentTurn } from '@/lib/ai/api'
+import { parseChatMarkdown, type ChatMarkdownSegment } from '@/lib/ai/chatMarkdown'
 import {
   summarizeText,
   trackBehaviorEvent,
@@ -53,6 +54,57 @@ function makeFunctionResponsePart(
 
 function summarizePendingActions(actions: PendingAction[]) {
   return `我准备执行 ${actions.length} 项变更，请确认后再写入。`
+}
+
+function renderMarkdownSegments(segments: ChatMarkdownSegment[]) {
+  return segments.map((segment, index) =>
+    segment.strong ? (
+      <strong key={`${segment.text}-${index}`} style={{ fontWeight: 700, color: 'var(--text)' }}>
+        {segment.text}
+      </strong>
+    ) : (
+      <span key={`${segment.text}-${index}`}>{segment.text}</span>
+    )
+  )
+}
+
+function renderMessageContent(message: AiConversationMessage) {
+  if (message.role === 'user') return message.content
+
+  const blocks = parseChatMarkdown(message.content)
+  return (
+    <div className="flex flex-col gap-1">
+      {blocks.map((block, index) => {
+        if (block.kind === 'blank') {
+          return <div key={`blank-${index}`} style={{ height: '0.45em' }} />
+        }
+
+        if (block.kind === 'heading') {
+          return (
+            <div
+              key={`heading-${index}`}
+              style={{ color: 'var(--text)', fontWeight: 700, marginTop: index === 0 ? 0 : '4px' }}
+            >
+              {renderMarkdownSegments(block.segments)}
+            </div>
+          )
+        }
+
+        if (block.kind === 'ordered-list-item' || block.kind === 'unordered-list-item') {
+          return (
+            <div key={`list-${index}`} className="flex items-start gap-2">
+              <span style={{ color: 'var(--text-muted)', flex: '0 0 1.6em', textAlign: 'right' }}>
+                {block.marker}
+              </span>
+              <span className="min-w-0 flex-1">{renderMarkdownSegments(block.segments)}</span>
+            </div>
+          )
+        }
+
+        return <div key={`paragraph-${index}`}>{renderMarkdownSegments(block.segments)}</div>
+      })}
+    </div>
+  )
 }
 
 function formatReflectionMessage(result: AssistantReflectionResult) {
@@ -511,7 +563,9 @@ export function AIChatPanel({ open, onClose }: AIChatPanelProps) {
           {messages.map((msg) => (
             <div key={msg.id} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
               <div
-                className="max-w-[86%] rounded-2xl px-3 py-2 text-sm leading-relaxed whitespace-pre-wrap"
+                className={`max-w-[86%] rounded-2xl px-3 py-2 text-sm leading-relaxed ${
+                  msg.role === 'user' ? 'whitespace-pre-wrap' : ''
+                }`}
                 style={
                   msg.role === 'user'
                     ? { background: 'var(--primary)', color: '#fff', borderBottomRightRadius: '4px' }
@@ -533,7 +587,7 @@ export function AIChatPanel({ open, onClose }: AIChatPanelProps) {
                 {msg.role === 'system' && (
                   <AlertCircle size={13} style={{ display: 'inline', marginRight: '6px', verticalAlign: '-2px' }} />
                 )}
-                {msg.content}
+                {renderMessageContent(msg)}
               </div>
             </div>
           ))}
