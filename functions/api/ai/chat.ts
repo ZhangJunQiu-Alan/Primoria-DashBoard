@@ -8,6 +8,7 @@ import {
 import {
   DASHBOARD_AGENT_SYSTEM_PROMPT,
   DASHBOARD_TOOL_DECLARATIONS,
+  MEMORY_WRITE_AGENT_SYSTEM_PROMPT,
   type GeminiContent,
 } from '../../_shared/gemini'
 import {
@@ -56,20 +57,26 @@ export async function onRequestPost({ env, request }: PagesContext) {
       }),
     ])
     const specialistRole = getSpecialistRole(routed.decision.intent)
+    const isMemoryWrite = routed.decision.intent === 'memory_write'
     const toolsAllowed = specialistRole === 'dashboard_operator'
-    const basePrompt = getAgentPromptForRoute(routed.decision.intent) ?? DASHBOARD_AGENT_SYSTEM_PROMPT
+    const basePrompt = isMemoryWrite
+      ? MEMORY_WRITE_AGENT_SYSTEM_PROMPT
+      : getAgentPromptForRoute(routed.decision.intent) ?? DASHBOARD_AGENT_SYSTEM_PROMPT
     const systemInstruction = buildAgentSystemInstruction({
       base: basePrompt,
       ragContext: rag.ragContext,
       role: specialistRole,
       today,
     })
+    const toolDeclarations = isMemoryWrite
+      ? DASHBOARD_TOOL_DECLARATIONS.filter((tool) => tool.name === 'propose_memory_write')
+      : DASHBOARD_TOOL_DECLARATIONS
     const specialist = await runGeminiAgent({
       contents: body.contents,
       env,
       role: specialistRole,
       systemInstruction,
-      ...(toolsAllowed ? { tools: [{ functionDeclarations: DASHBOARD_TOOL_DECLARATIONS }] } : {}),
+      ...(toolsAllowed ? { tools: [{ functionDeclarations: toolDeclarations }] } : {}),
     })
     const agentTrace = [
       routed.trace,
