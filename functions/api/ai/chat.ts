@@ -26,7 +26,9 @@ interface ChatBody {
   clientDate?: string
 }
 
-function getSpecialistRole(intent: 'dashboard_operation' | 'memory_question' | 'general_answer'): AssistantAgentRole {
+function getSpecialistRole(
+  intent: 'dashboard_operation' | 'memory_question' | 'memory_write' | 'general_answer'
+): AssistantAgentRole {
   if (intent === 'memory_question') return 'memory_agent'
   if (intent === 'general_answer') return 'orchestrator'
   return 'dashboard_operator'
@@ -41,16 +43,18 @@ export async function onRequestPost({ env, request }: PagesContext) {
       ? body.clientDate
       : new Date().toISOString().slice(0, 10)
     const latestUserText = extractLatestUserText(body.contents)
-    const routed = await routeAssistantRequest({
-      contents: body.contents,
-      env,
-      latestUserText,
-    })
-    const rag = await runRagRetriever({
-      env,
-      query: latestUserText,
-      userId: user.id,
-    })
+    const [routed, rag] = await Promise.all([
+      routeAssistantRequest({
+        contents: body.contents,
+        env,
+        latestUserText,
+      }),
+      runRagRetriever({
+        env,
+        query: latestUserText,
+        userId: user.id,
+      }),
+    ])
     const specialistRole = getSpecialistRole(routed.decision.intent)
     const toolsAllowed = specialistRole === 'dashboard_operator'
     const basePrompt = getAgentPromptForRoute(routed.decision.intent) ?? DASHBOARD_AGENT_SYSTEM_PROMPT

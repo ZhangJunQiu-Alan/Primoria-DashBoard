@@ -1,6 +1,15 @@
 import { buildBriefContext, getLocalDayIsoRange } from '@/lib/ai/briefContext'
-import { fetchCalendarEvents } from '@/lib/ai/api'
-import type { CalendarEvent, GeminiFunctionCall, PendingAction } from '@/lib/ai/types'
+import {
+  createAssistantMemory,
+  fetchCalendarEvents,
+  updateAssistantMemory,
+} from '@/lib/ai/api'
+import type {
+  AssistantMemoryType,
+  CalendarEvent,
+  GeminiFunctionCall,
+  PendingAction,
+} from '@/lib/ai/types'
 import { formatLocalDateKey } from '@/lib/date'
 import { useDashboardStore } from '@/store/dashboardStore'
 import { useWidgetDataStore } from '@/store/widgetDataStore'
@@ -377,6 +386,52 @@ function prepareWriteNote(args: Record<string, unknown>): ToolResult {
   return { pendingActions: [action], response: { pending: true, actions: [action] } }
 }
 
+const MEMORY_TYPE_LABELS: Record<AssistantMemoryType, string> = {
+  user_preference: '偏好',
+  work_habit: '工作习惯',
+  project_fact: '项目事实',
+  process_rule: '流程规则',
+}
+
+const ALLOWED_MEMORY_TYPES: AssistantMemoryType[] = [
+  'user_preference',
+  'work_habit',
+  'project_fact',
+  'process_rule',
+]
+
+function prepareProposeMemoryWrite(args: Record<string, unknown>): ToolResult {
+  const memoryTypeRaw = getString(args, 'memoryType')
+  const memoryType =
+    memoryTypeRaw && (ALLOWED_MEMORY_TYPES as string[]).includes(memoryTypeRaw)
+      ? (memoryTypeRaw as AssistantMemoryType)
+      : null
+  const title = getString(args, 'title')
+  const body = getString(args, 'body')
+
+  if (!memoryType) return { pendingActions: [], response: { error: 'memoryType 必须为 user_preference / work_habit / project_fact / process_rule。' } }
+  if (!title) return { pendingActions: [], response: { error: '记忆 title 不能为空。' } }
+  if (!body) return { pendingActions: [], response: { error: '记忆 body 不能为空。' } }
+
+  const scope = getString(args, 'scope') ?? 'global'
+  const existingMemoryId = getString(args, 'existingMemoryId')
+
+  const action: PendingAction = {
+    body,
+    existingMemoryId,
+    id: makeActionId('memory-write'),
+    label: existingMemoryId
+      ? `更新长期记忆（${MEMORY_TYPE_LABELS[memoryType]}）：${title}`
+      : `写入长期记忆（${MEMORY_TYPE_LABELS[memoryType]}）：${title}`,
+    memoryType,
+    scope,
+    title,
+    type: 'proposeMemoryWrite',
+  }
+
+  return { pendingActions: [action], response: { pending: true, actions: [action] } }
+}
+
 async function listCalendarEvents(args: Record<string, unknown>): Promise<ToolResult> {
   const today = formatLocalDateKey()
   const fallbackRange = getLocalDayIsoRange(today)
@@ -447,6 +502,8 @@ export async function executeDashboardTool(call: GeminiFunctionCall): Promise<To
       return listCalendarEvents(args)
     case 'get_brief_context':
       return getBriefContext(args)
+    case 'propose_memory_write':
+      return prepareProposeMemoryWrite(args)
     default:
       return { pendingActions: [], response: { error: `Unknown tool: ${call.name}` } }
   }
@@ -536,6 +593,23 @@ export function applyPendingActions(actions: PendingAction[]) {
       } else {
         data.appendNote(widgetId, action.content)
       }
+      continue
+    }
+
+    if (action.type === 'proposeMemoryWrite') {
+      const payload = {
+        body: action.body,
+        memory_type: action.memoryType,
+        scope: action.scope,
+        title: action.title,
+      }
+      const persist = action.existingMemoryId
+        ? updateAssistantMemory({ id: action.existingMemoryId, ...payload })
+        : createAssistantMemory(payload)
+      void persist.catch((error) => {
+        console.warn('[memory] failed to persist memory write', error)
+      })
+      continue
     }
   }
 }

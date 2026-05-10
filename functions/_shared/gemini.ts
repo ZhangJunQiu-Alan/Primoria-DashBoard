@@ -230,6 +230,32 @@ export const DASHBOARD_TOOL_DECLARATIONS = [
       required: ['date'],
     },
   },
+  {
+    name: 'propose_memory_write',
+    description:
+      'Prepare a pending action to create or update one long-term assistant memory the user explicitly asked to remember. Does not write until the user confirms. Use this when the user wants to save a preference, work habit, project fact, or process rule.',
+    parameters: {
+      type: 'object',
+      properties: {
+        memoryType: {
+          type: 'string',
+          enum: ['user_preference', 'work_habit', 'project_fact', 'process_rule'],
+          description: 'Memory category.',
+        },
+        title: { type: 'string', description: 'Short Chinese title (≤ 80 chars).' },
+        body: { type: 'string', description: 'Detailed memory content the assistant should remember.' },
+        scope: {
+          type: 'string',
+          description: 'Optional. e.g. "global" | "dashboard" | "project:<name>". Defaults to "global".',
+        },
+        existingMemoryId: {
+          type: 'string',
+          description: 'Optional. Pass when updating an existing memory rather than creating a new one.',
+        },
+      },
+      required: ['memoryType', 'title', 'body'],
+    },
+  },
 ]
 
 export function getGeminiModel(env: FunctionEnv) {

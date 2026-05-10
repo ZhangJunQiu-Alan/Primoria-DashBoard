@@ -214,3 +214,11 @@ export type PendingAction =
       mode: 'append' | 'replace'
       target: 'notes' | 'lined-notes'
     })
+  | (PendingActionBase & {
+      type: 'proposeMemoryWrite'
+      memoryType: AssistantMemoryType
+      title: string
+      body: string
+      scope: string
+      existingMemoryId: string | null
+    })

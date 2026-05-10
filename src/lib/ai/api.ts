@@ -40,14 +40,29 @@ async function authedFetch(path: string, init: RequestInit = {}) {
     },
   })
 
-  const contentType = response.headers.get('content-type') ?? ''
-  const isJson = contentType.includes('application/json')
-  const data = isJson ? await response.json() as { error?: string } : null
+  const rawText = await response.text()
+  let data: { error?: string } | null = null
+  if (rawText) {
+    try {
+      data = JSON.parse(rawText) as { error?: string }
+    } catch {
+      data = null
+    }
+  }
 
   if (!response.ok) {
+    if (data?.error) throw new Error(data.error)
+    if (response.status === 524) {
+      throw new Error('助手响应超时（Cloudflare 524），请稍后重试或拆短问题。')
+    }
+    if (response.status === 502 || response.status === 503 || response.status === 504) {
+      throw new Error(`网关错误 ${response.status}，请稍后重试。`)
+    }
+    const snippet = rawText ? rawText.slice(0, 120).replace(/\s+/g, ' ').trim() : ''
     throw new Error(
-      data?.error ||
-        `${path} 不可用。若在本地调试 AI，请用 pnpm dev:pages 打开 http://127.0.0.1:8788/。`
+      snippet
+        ? `${path} 失败（${response.status}）：${snippet}`
+        : `${path} 不可用。若在本地调试 AI，请用 pnpm dev:pages 打开 http://127.0.0.1:8788/。`
     )
   }
 
@@ -136,6 +151,19 @@ export async function generateAssistantReflection({
 
 export async function fetchAssistantMemories() {
   return authedFetch('/api/ai/memories', { method: 'GET' }) as Promise<{ memories: AssistantMemory[] }>
+}
+
+export async function createAssistantMemory(input: {
+  body: string
+  confidence?: number
+  memory_type: AssistantMemoryType
+  scope?: string
+  title: string
+}) {
+  return authedFetch('/api/ai/memories', {
+    method: 'POST',
+    body: JSON.stringify(input),
+  }) as Promise<{ memory: AssistantMemory }>
 }
 
 export async function updateAssistantMemory(input: {

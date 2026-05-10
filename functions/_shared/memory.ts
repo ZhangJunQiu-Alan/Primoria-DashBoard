@@ -513,6 +513,62 @@ export async function extractAssistantMemories({
   return summary
 }
 
+export async function createAssistantMemory({
+  env,
+  input,
+  userId,
+}: {
+  env: FunctionEnv
+  input: {
+    body?: unknown
+    confidence?: unknown
+    memory_type?: unknown
+    scope?: unknown
+    title?: unknown
+  }
+  userId: string
+}) {
+  const memoryType = isMemoryType(input.memory_type) ? input.memory_type : null
+  if (!memoryType) throw new HttpError(400, 'memory_type is invalid')
+
+  const title = sanitizeText(asString(input.title) ?? '', MAX_MEMORY_TITLE_LENGTH)
+  if (!title) throw new HttpError(400, 'title is required')
+
+  const body = sanitizeText(asString(input.body) ?? '')
+  if (!body) throw new HttpError(400, 'body is required')
+
+  const scope = sanitizeText(asString(input.scope) ?? 'global', 80) || 'global'
+  const confidence = clamp(asNumber(input.confidence) ?? 0.95, 0, 1)
+  const now = new Date().toISOString()
+
+  const row = {
+    body,
+    confidence,
+    evidence: [{ note: '由用户在 AI 助手对话中确认写入。', recorded_at: now }],
+    last_seen_at: now,
+    memory_type: memoryType,
+    schema_version: MEMORY_SCHEMA_VERSION,
+    scope,
+    source_reflection_keys: [],
+    title,
+    user_id: userId,
+    user_modified_at: now,
+  }
+
+  const supabaseUrl = getSupabaseRestUrl(env)
+  const params = new URLSearchParams({ select: MEMORY_SELECT })
+  const response = await fetch(`${supabaseUrl}/rest/v1/user_assistant_memories?${params.toString()}`, {
+    body: JSON.stringify(row),
+    headers: restHeaders(env, 'return=representation'),
+    method: 'POST',
+  })
+
+  if (!response.ok) throw new HttpError(500, 'Unable to create assistant memory')
+  const rows = await response.json() as Record<string, unknown>[]
+  if (!rows[0]) throw new HttpError(500, 'Assistant memory not created')
+  return normalizeMemoryRow(rows[0])
+}
+
 export async function updateAssistantMemory({
   env,
   input,

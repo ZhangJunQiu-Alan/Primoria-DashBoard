@@ -35,6 +35,7 @@ export interface AssistantAgentTraceItem {
 export type AgentRouteIntent =
   | 'dashboard_operation'
   | 'memory_question'
+  | 'memory_write'
   | 'general_answer'
 
 export interface AgentRouteDecision {
@@ -59,16 +60,18 @@ export interface AgentRunOutput {
 const ROUTE_INTENTS: AgentRouteIntent[] = [
   'dashboard_operation',
   'memory_question',
+  'memory_write',
   'general_answer',
 ]
 
 const ORCHESTRATOR_SYSTEM_PROMPT = `
 你是 Primoria Dashboard 的 Orchestrator Agent。你只负责把用户消息分流到一个 specialist，不要回答用户问题。
-只输出严格 JSON：{"intent":"dashboard_operation|memory_question|general_answer","confidence":0-1,"reason":"简短中文原因"}
+只输出严格 JSON：{"intent":"dashboard_operation|memory_question|memory_write|general_answer","confidence":0-1,"reason":"简短中文原因"}
 分流规则：
 - dashboard_operation：用户要读取、搜索、移动、新建、更新、删除 dashboard 当前数据，或询问今天/明天/本周的任务、日程、习惯、笔记。
-- memory_question：用户明确询问你记得什么、长期记忆、偏好、工作习惯、流程规则、项目事实。
-- general_answer：不依赖 dashboard 当前状态，也不是记忆查询的一般问题。
+- memory_question：用户在**询问**长期记忆、偏好、工作习惯、流程规则、项目事实（"你记得"/"我之前说过"/"我喜欢"）。
+- memory_write：用户希望**写入或更新**长期记忆 / 偏好 / 工作习惯 / 项目事实（"记下"/"记住"/"帮我记"/"把这个写进长期记忆"/"以后请记得我..."）。即使消息里出现"长期记忆"或"memory"这种词，只要意图是写入或保存就归到 memory_write。
+- general_answer：不依赖 dashboard 当前状态，也不是记忆查询/写入的一般问题。
 不确定时选择 dashboard_operation。
 `.trim()
 
@@ -164,19 +167,45 @@ export function extractLatestUserText(contents: GeminiContent[]) {
 
 export function classifyRouteHeuristically(text: string): AgentRouteDecision {
   const normalized = text.toLowerCase()
-  const memorySignals = [
+
+  const memoryWriteSignals = [
+    '记下来',
+    '记下',
+    '记住',
+    '帮我记',
+    '请记得',
+    '以后请',
+    '以后记得',
+    '写入长期记忆',
+    '写进长期记忆',
+    '加入长期记忆',
+    '存到记忆',
+    '存进记忆',
+    '保存到记忆',
+    '保存为偏好',
+    '更新偏好',
+    '更新长期记忆',
+    'remember this',
+    'save this to memory',
+  ]
+  if (memoryWriteSignals.some((signal) => normalized.includes(signal))) {
+    return {
+      confidence: 0.7,
+      intent: 'memory_write',
+      reason: '用户希望写入或更新长期记忆。',
+    }
+  }
+
+  const memoryQuerySignals = [
     '你记得',
     '还记得',
-    '长期记忆',
-    '记忆里',
+    '我之前说过',
     '我的偏好',
     '我喜欢',
-    '工作习惯',
-    '流程规则',
-    '项目事实',
-    'memory',
+    '我的工作习惯',
+    '我的流程规则',
   ]
-  if (memorySignals.some((signal) => normalized.includes(signal))) {
+  if (memoryQuerySignals.some((signal) => normalized.includes(signal))) {
     return {
       confidence: 0.65,
       intent: 'memory_question',
