@@ -30,6 +30,18 @@ interface GeminiResponse {
   usageMetadata?: unknown
 }
 
+interface GeminiEmbeddingResponse {
+  embedding?: {
+    values?: number[]
+  }
+  embeddings?: Array<{
+    values?: number[]
+  }>
+  error?: {
+    message?: string
+  }
+}
+
 export const DASHBOARD_AGENT_SYSTEM_PROMPT = `
 你是 Primoria Dashboard 的 dashboard agent。你只能基于工具返回的 dashboard 数据回答，绝不能凭记忆或常识回答用户日程、待办、习惯或笔记。
 关键规则：用户问任何与 dashboard 内容相关的问题（"我今天有什么任务"、"我有哪些习惯"、"我笔记里写过 X 吗"等），必须先调用对应的读工具（list_scheduled_tasks / list_todos / get_dashboard_overview / search_notes / list_calendar_events），看到返回再回答。哪怕你以为没有数据也要先调用工具确认。
@@ -222,6 +234,63 @@ export const DASHBOARD_TOOL_DECLARATIONS = [
 
 export function getGeminiModel(env: FunctionEnv) {
   return env.GEMINI_MODEL?.trim() || 'gemini-3.1-pro-preview'
+}
+
+export const GEMINI_EMBEDDING_MODEL = 'gemini-embedding-001'
+export const GEMINI_EMBEDDING_DIMENSIONS = 768
+
+function normalizeEmbedding(values: number[]) {
+  const norm = Math.hypot(...values)
+  if (!Number.isFinite(norm) || norm === 0) return values
+  return values.map((value) => value / norm)
+}
+
+export async function generateGeminiEmbedding({
+  env,
+  taskType = 'SEMANTIC_SIMILARITY',
+  text,
+  title,
+}: {
+  env: FunctionEnv
+  taskType?: 'RETRIEVAL_DOCUMENT' | 'RETRIEVAL_QUERY' | 'SEMANTIC_SIMILARITY'
+  text: string
+  title?: string
+}) {
+  if (!env.GEMINI_API_KEY) throw new HttpError(500, 'GEMINI_API_KEY is not configured')
+
+  const body: Record<string, unknown> = {
+    content: {
+      parts: [{ text }],
+    },
+    output_dimensionality: GEMINI_EMBEDDING_DIMENSIONS,
+    taskType,
+  }
+
+  if (title && taskType === 'RETRIEVAL_DOCUMENT') body.title = title
+
+  const response = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_EMBEDDING_MODEL}:embedContent`,
+    {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'x-goog-api-key': env.GEMINI_API_KEY,
+      },
+      body: JSON.stringify(body),
+    }
+  )
+
+  const data = await response.json() as GeminiEmbeddingResponse
+  if (!response.ok) {
+    throw new HttpError(response.status, data.error?.message || 'Gemini embedding request failed')
+  }
+
+  const values = data.embedding?.values ?? data.embeddings?.[0]?.values
+  if (!Array.isArray(values) || values.length !== GEMINI_EMBEDDING_DIMENSIONS) {
+    throw new HttpError(500, 'Gemini embedding response has unexpected dimensions')
+  }
+
+  return normalizeEmbedding(values)
 }
 
 export async function generateGeminiContent({

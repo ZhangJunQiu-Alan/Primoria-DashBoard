@@ -1,7 +1,28 @@
-import { useEffect, useRef, useState } from 'react'
-import { AlertCircle, Bot, CalendarClock, Check, LoaderCircle, Send, Sparkles, X } from 'lucide-react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import {
+  AlertCircle,
+  Bot,
+  Brain,
+  CalendarClock,
+  Check,
+  Edit3,
+  LoaderCircle,
+  MessageCircle,
+  RefreshCw,
+  Save,
+  Send,
+  Sparkles,
+  Trash2,
+  X,
+} from 'lucide-react'
 import { applyPendingActions, executeDashboardTool } from '@/lib/ai/dashboardTools'
-import { generateAssistantReflection, sendAgentTurn } from '@/lib/ai/api'
+import {
+  deleteAssistantMemory,
+  fetchAssistantMemories,
+  generateAssistantReflection,
+  sendAgentTurn,
+  updateAssistantMemory,
+} from '@/lib/ai/api'
 import { parseChatMarkdown, type ChatMarkdownSegment } from '@/lib/ai/chatMarkdown'
 import {
   summarizeText,
@@ -12,6 +33,10 @@ import { flushBehaviorEventQueue } from '@/lib/behaviorEventSync'
 import { formatLocalDateKey } from '@/lib/date'
 import { syncUserContentItems } from '@/lib/userContentItems'
 import type {
+  AssistantMemory,
+  AssistantMemoryType,
+  AssistantRagSource,
+  AssistantMemoryUpdateSummary,
   AssistantReflectionPeriodType,
   AssistantReflectionResult,
   GeminiContent,
@@ -30,6 +55,30 @@ interface AIChatPanelProps {
   open: boolean
   onClose: () => void
 }
+
+type PanelMode = 'chat' | 'memories'
+
+type MemoryDraft = {
+  body: string
+  memory_type: AssistantMemoryType
+  scope: string
+  title: string
+}
+
+const MEMORY_TYPE_LABELS: Record<AssistantMemoryType, string> = {
+  process_rule: '流程规则',
+  project_fact: '项目事实',
+  user_preference: '用户偏好',
+  work_habit: '工作习惯',
+}
+
+const MEMORY_TYPE_OPTIONS = Object.keys(MEMORY_TYPE_LABELS) as AssistantMemoryType[]
+
+const RAG_SOURCE_LABELS = {
+  assistant_memory: '记忆',
+  assistant_reflection: '反思',
+  content_item: '内容',
+} satisfies Record<AssistantRagSource['source_type'], string>
 
 function makeMessageId() {
   return `msg-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
@@ -54,6 +103,43 @@ function makeFunctionResponsePart(
 
 function summarizePendingActions(actions: PendingAction[]) {
   return `我准备执行 ${actions.length} 项变更，请确认后再写入。`
+}
+
+function formatMemoryUpdates(summary: AssistantMemoryUpdateSummary | undefined) {
+  if (!summary) return ''
+  if (!summary.extracted) return '长期记忆：已是最新，或本次没有可提炼内容。'
+  return `长期记忆：新增 ${summary.created} 条，更新 ${summary.updated} 条，跳过 ${summary.skipped} 条。`
+}
+
+function formatRagSources(sources: AssistantRagSource[] | undefined) {
+  const visible = (sources ?? []).slice(0, 3)
+  if (visible.length === 0) return ''
+  return `\n\n参考来源：\n${visible
+    .map((source) =>
+      `- ${RAG_SOURCE_LABELS[source.source_type]}｜${source.title}｜${Math.round(source.similarity * 100)}%`
+    )
+    .join('\n')}`
+}
+
+function formatMemoryDate(value: string | null | undefined) {
+  if (!value) return '未记录'
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return '未记录'
+  return date.toLocaleString('zh-CN', {
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    month: '2-digit',
+  })
+}
+
+function createMemoryDraft(memory: AssistantMemory): MemoryDraft {
+  return {
+    body: memory.body,
+    memory_type: memory.memory_type,
+    scope: memory.scope,
+    title: memory.title,
+  }
 }
 
 function renderMarkdownSegments(segments: ChatMarkdownSegment[]) {
@@ -120,8 +206,11 @@ function formatReflectionMessage(result: AssistantReflectionResult) {
   const suggestions = result.suggestions.length
     ? result.suggestions.map((item) => `- ${item}`).join('\n')
     : '- 暂无额外建议。'
+  const memoryUpdates = formatMemoryUpdates(result.memory_updates)
+  const memorySection = memoryUpdates ? `\n\n${memoryUpdates}` : ''
+  const ragSection = formatRagSources(result.rag_sources)
 
-  return `${title}（${result.period_start} 至 ${result.period_end}）\n\n${result.summary}\n\n${result.completion_summary}\n\n优先级：\n${priorities}\n\n建议：\n${suggestions}`
+  return `${title}（${result.period_start} 至 ${result.period_end}）\n\n${result.summary}\n\n${result.completion_summary}\n\n优先级：\n${priorities}\n\n建议：\n${suggestions}${memorySection}${ragSection}`
 }
 
 export function AIChatPanel({ open, onClose }: AIChatPanelProps) {
@@ -138,6 +227,19 @@ export function AIChatPanel({ open, onClose }: AIChatPanelProps) {
   const [input, setInput] = useState('')
   const [busy, setBusy] = useState(false)
   const [reflectionBusy, setReflectionBusy] = useState<AssistantReflectionPeriodType | null>(null)
+  const [panelMode, setPanelMode] = useState<PanelMode>('chat')
+  const [memories, setMemories] = useState<AssistantMemory[]>([])
+  const [memoryDraft, setMemoryDraft] = useState<MemoryDraft>({
+    body: '',
+    memory_type: 'project_fact',
+    scope: 'global',
+    title: '',
+  })
+  const [editingMemoryId, setEditingMemoryId] = useState<string | null>(null)
+  const [memoryError, setMemoryError] = useState<string | null>(null)
+  const [memoryLoading, setMemoryLoading] = useState(false)
+  const [memorySavingId, setMemorySavingId] = useState<string | null>(null)
+  const [memoryDeletingId, setMemoryDeletingId] = useState<string | null>(null)
   const [pendingActions, setPendingActions] = useState<PendingAction[]>(
     initialConversationRef.current.pendingActions
   )
@@ -150,9 +252,32 @@ export function AIChatPanel({ open, onClose }: AIChatPanelProps) {
 
   const ready = configured && Boolean(user)
 
+  const loadMemories = useCallback(async () => {
+    if (!ready) {
+      setMemories([])
+      return
+    }
+
+    setMemoryLoading(true)
+    setMemoryError(null)
+    try {
+      const result = await fetchAssistantMemories()
+      setMemories(result.memories)
+    } catch (error) {
+      setMemoryError(error instanceof Error ? error.message : '长期记忆加载失败')
+    } finally {
+      setMemoryLoading(false)
+    }
+  }, [ready])
+
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages, pendingActions, busy])
+
+  useEffect(() => {
+    if (!open || panelMode !== 'memories') return
+    void loadMemories()
+  }, [loadMemories, open, panelMode])
 
   useEffect(() => {
     if (!storedConversation || busy) return
@@ -220,6 +345,58 @@ export function AIChatPanel({ open, onClose }: AIChatPanelProps) {
     persistConversation()
   }
 
+  function startEditingMemory(memory: AssistantMemory) {
+    setEditingMemoryId(memory.id)
+    setMemoryDraft(createMemoryDraft(memory))
+    setMemoryError(null)
+  }
+
+  function cancelEditingMemory() {
+    setEditingMemoryId(null)
+    setMemoryDraft({ body: '', memory_type: 'project_fact', scope: 'global', title: '' })
+  }
+
+  async function saveMemoryEdit(id: string) {
+    if (!memoryDraft.title.trim() || !memoryDraft.body.trim()) {
+      setMemoryError('标题和内容不能为空')
+      return
+    }
+
+    setMemorySavingId(id)
+    setMemoryError(null)
+    try {
+      const result = await updateAssistantMemory({
+        body: memoryDraft.body,
+        id,
+        memory_type: memoryDraft.memory_type,
+        scope: memoryDraft.scope,
+        title: memoryDraft.title,
+      })
+      setMemories((items) => items.map((item) => (item.id === id ? result.memory : item)))
+      cancelEditingMemory()
+    } catch (error) {
+      setMemoryError(error instanceof Error ? error.message : '长期记忆保存失败')
+    } finally {
+      setMemorySavingId(null)
+    }
+  }
+
+  async function removeMemory(id: string) {
+    if (!window.confirm('确认删除这条长期记忆吗？')) return
+
+    setMemoryDeletingId(id)
+    setMemoryError(null)
+    try {
+      await deleteAssistantMemory(id)
+      setMemories((items) => items.filter((item) => item.id !== id))
+      if (editingMemoryId === id) cancelEditingMemory()
+    } catch (error) {
+      setMemoryError(error instanceof Error ? error.message : '长期记忆删除失败')
+    } finally {
+      setMemoryDeletingId(null)
+    }
+  }
+
   async function runAgentLoop(contents: GeminiContent[]) {
     setBusy(true)
 
@@ -239,6 +416,7 @@ export function AIChatPanel({ open, onClose }: AIChatPanelProps) {
             eventName: 'ai.reply_received',
             metadata: {
               length: response.text.length,
+              ragSourceCount: response.rag_sources?.length ?? 0,
               replySummary: summarizeText(response.text || '我没有找到需要执行的操作。', 100),
             },
             objectType: 'ai_message',
@@ -247,7 +425,7 @@ export function AIChatPanel({ open, onClose }: AIChatPanelProps) {
           })
           appendMessage({
             role: 'assistant',
-            content: response.text || '我没有找到需要执行的操作。',
+            content: `${response.text || '我没有找到需要执行的操作。'}${formatRagSources(response.rag_sources)}`,
           })
           return
         }
@@ -363,10 +541,15 @@ export function AIChatPanel({ open, onClose }: AIChatPanelProps) {
         eventName: 'assistant_reflection.generated',
         metadata: {
           cached: Boolean(result.cached),
+          memoryCreated: result.memory_updates?.created ?? 0,
+          memoryExtracted: result.memory_updates?.extracted ?? false,
+          memorySkipped: result.memory_updates?.skipped ?? 0,
+          memoryUpdated: result.memory_updates?.updated ?? 0,
           periodEnd: result.period_end,
           periodStart: result.period_start,
           periodType: result.period_type,
           priorityCount: result.priority_items.length,
+          ragSourceCount: result.rag_sources?.length ?? 0,
           suggestionCount: result.suggestions.length,
         },
         objectId: result.reflection_key,
@@ -375,6 +558,7 @@ export function AIChatPanel({ open, onClose }: AIChatPanelProps) {
         surface: 'ai_chat',
       })
       appendMessage({ role: 'assistant', content })
+      if (result.memory_updates) void loadMemories()
       await flushBehaviorEventQueue(user.id)
     } catch (error) {
       const message = error instanceof Error ? error.message : '反思生成失败'
@@ -528,173 +712,426 @@ export function AIChatPanel({ open, onClose }: AIChatPanelProps) {
         </div>
 
         <div className="flex flex-shrink-0 gap-2 px-4 py-3" style={{ borderBottom: '1px solid var(--border)' }}>
-          {(['daily', 'weekly'] as const).map((periodType) => {
-            const loading = reflectionBusy === periodType
+          {(['chat', 'memories'] as const).map((mode) => {
+            const active = panelMode === mode
             return (
               <button
-                key={periodType}
-                onClick={() => void runReflection(periodType)}
-                disabled={!ready || busy || pendingActions.length > 0}
-                className="flex flex-1 items-center justify-center gap-1.5 rounded-xl px-3 py-2 text-xs font-semibold disabled:opacity-60"
+                key={mode}
+                onClick={() => setPanelMode(mode)}
+                className="flex flex-1 items-center justify-center gap-1.5 rounded-xl px-3 py-2 text-xs font-semibold"
                 style={{
-                  background: 'var(--bg-muted)',
-                  border: '1px solid var(--border)',
-                  color: 'var(--text-sub)',
+                  background: active ? 'var(--primary)' : 'var(--bg-muted)',
+                  border: `1px solid ${active ? 'var(--primary)' : 'var(--border)'}`,
+                  color: active ? '#fff' : 'var(--text-sub)',
                 }}
               >
-                {loading ? <LoaderCircle size={13} className="animate-spin" /> : <CalendarClock size={13} />}
-                {periodType === 'daily' ? '今日反思' : '本周反思'}
+                {mode === 'chat' ? <MessageCircle size={13} /> : <Brain size={13} />}
+                {mode === 'chat' ? '聊天' : '记忆'}
               </button>
             )
           })}
         </div>
 
-        <div className="flex-1 overflow-y-auto flex flex-col gap-3 p-4">
-          {messages.length === 0 && (
-            <div className="flex flex-col items-center justify-center h-full gap-3 text-center">
-              <Bot size={36} style={{ color: 'var(--border)' }} />
-              <p style={{ fontSize: '14px', color: 'var(--text-muted)' }}>可以直接操作你的 dashboard</p>
-              <p style={{ fontSize: '11px', color: 'var(--text-muted)', opacity: 0.7, maxWidth: '240px' }}>
-                例如：把今天没做完的待办挪到明天，或搜索笔记里的面试日期。
-              </p>
-            </div>
-          )}
-
-          {messages.map((msg) => (
-            <div key={msg.id} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-              <div
-                className={`max-w-[86%] rounded-2xl px-3 py-2 text-sm leading-relaxed ${
-                  msg.role === 'user' ? 'whitespace-pre-wrap' : ''
-                }`}
-                style={
-                  msg.role === 'user'
-                    ? { background: 'var(--primary)', color: '#fff', borderBottomRightRadius: '4px' }
-                    : msg.role === 'system'
-                      ? {
-                          background: 'rgba(196,128,122,0.12)',
-                          color: '#9B4A45',
-                          border: '1px solid rgba(196,128,122,0.24)',
-                          borderBottomLeftRadius: '4px',
-                        }
-                      : {
-                          background: 'var(--bg-muted)',
-                          color: 'var(--text-sub)',
-                          border: '1px solid var(--border)',
-                          borderBottomLeftRadius: '4px',
-                        }
-                }
-              >
-                {msg.role === 'system' && (
-                  <AlertCircle size={13} style={{ display: 'inline', marginRight: '6px', verticalAlign: '-2px' }} />
-                )}
-                {renderMessageContent(msg)}
-              </div>
-            </div>
-          ))}
-
-          {pendingActions.length > 0 && (
-            <div
-              className="rounded-2xl p-3"
-              style={{
-                background: 'rgba(254,250,245,0.96)',
-                border: '1px solid var(--primary-light)',
-                boxShadow: '0 6px 18px rgba(90,70,50,0.08)',
-              }}
-            >
-              <div style={{ fontSize: '12px', fontWeight: 700, color: 'var(--primary-dark)', marginBottom: '8px' }}>
-                待确认变更
-              </div>
-              <div className="flex flex-col gap-2">
-                {pendingActions.map((action) => (
-                  <div
-                    key={action.id}
-                    className="rounded-xl px-3 py-2"
+        {panelMode === 'chat' ? (
+          <>
+            <div className="flex flex-shrink-0 gap-2 px-4 py-3" style={{ borderBottom: '1px solid var(--border)' }}>
+              {(['daily', 'weekly'] as const).map((periodType) => {
+                const loading = reflectionBusy === periodType
+                return (
+                  <button
+                    key={periodType}
+                    onClick={() => void runReflection(periodType)}
+                    disabled={!ready || busy || pendingActions.length > 0}
+                    className="flex flex-1 items-center justify-center gap-1.5 rounded-xl px-3 py-2 text-xs font-semibold disabled:opacity-60"
                     style={{
                       background: 'var(--bg-muted)',
+                      border: '1px solid var(--border)',
                       color: 'var(--text-sub)',
-                      fontSize: '12px',
-                      lineHeight: 1.5,
                     }}
                   >
-                    {action.label}
+                    {loading ? <LoaderCircle size={13} className="animate-spin" /> : <CalendarClock size={13} />}
+                    {periodType === 'daily' ? '今日反思' : '本周反思'}
+                  </button>
+                )
+              })}
+            </div>
+
+            <div className="flex-1 overflow-y-auto flex flex-col gap-3 p-4">
+              {messages.length === 0 && (
+                <div className="flex flex-col items-center justify-center h-full gap-3 text-center">
+                  <Bot size={36} style={{ color: 'var(--border)' }} />
+                  <p style={{ fontSize: '14px', color: 'var(--text-muted)' }}>可以直接操作你的 dashboard</p>
+                  <p style={{ fontSize: '11px', color: 'var(--text-muted)', opacity: 0.7, maxWidth: '240px' }}>
+                    例如：把今天没做完的待办挪到明天，或搜索笔记里的面试日期。
+                  </p>
+                </div>
+              )}
+
+              {messages.map((msg) => (
+                <div key={msg.id} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                  <div
+                    className={`max-w-[86%] rounded-2xl px-3 py-2 text-sm leading-relaxed ${
+                      msg.role === 'user' ? 'whitespace-pre-wrap' : ''
+                    }`}
+                    style={
+                      msg.role === 'user'
+                        ? { background: 'var(--primary)', color: '#fff', borderBottomRightRadius: '4px' }
+                        : msg.role === 'system'
+                          ? {
+                              background: 'rgba(196,128,122,0.12)',
+                              color: '#9B4A45',
+                              border: '1px solid rgba(196,128,122,0.24)',
+                              borderBottomLeftRadius: '4px',
+                            }
+                          : {
+                              background: 'var(--bg-muted)',
+                              color: 'var(--text-sub)',
+                              border: '1px solid var(--border)',
+                              borderBottomLeftRadius: '4px',
+                            }
+                    }
+                  >
+                    {msg.role === 'system' && (
+                      <AlertCircle size={13} style={{ display: 'inline', marginRight: '6px', verticalAlign: '-2px' }} />
+                    )}
+                    {renderMessageContent(msg)}
                   </div>
-                ))}
-              </div>
-              <div className="mt-3 flex gap-2 justify-end">
-                <button
-                  onClick={cancelPendingActions}
-                  className="flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-semibold"
+                </div>
+              ))}
+
+              {pendingActions.length > 0 && (
+                <div
+                  className="rounded-2xl p-3"
                   style={{
-                    background: 'var(--bg-muted)',
-                    border: '1px solid var(--border)',
-                    color: 'var(--text-sub)',
+                    background: 'rgba(254,250,245,0.96)',
+                    border: '1px solid var(--primary-light)',
+                    boxShadow: '0 6px 18px rgba(90,70,50,0.08)',
                   }}
                 >
-                  <X size={13} />
-                  取消
-                </button>
-                <button
-                  onClick={confirmPendingActions}
-                  className="flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-semibold text-white"
-                  style={{ background: 'var(--primary)' }}
-                >
-                  <Check size={13} />
-                  确认执行
-                </button>
-              </div>
-            </div>
-          )}
+                  <div style={{ fontSize: '12px', fontWeight: 700, color: 'var(--primary-dark)', marginBottom: '8px' }}>
+                    待确认变更
+                  </div>
+                  <div className="flex flex-col gap-2">
+                    {pendingActions.map((action) => (
+                      <div
+                        key={action.id}
+                        className="rounded-xl px-3 py-2"
+                        style={{
+                          background: 'var(--bg-muted)',
+                          color: 'var(--text-sub)',
+                          fontSize: '12px',
+                          lineHeight: 1.5,
+                        }}
+                      >
+                        {action.label}
+                      </div>
+                    ))}
+                  </div>
+                  <div className="mt-3 flex gap-2 justify-end">
+                    <button
+                      onClick={cancelPendingActions}
+                      className="flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-semibold"
+                      style={{
+                        background: 'var(--bg-muted)',
+                        border: '1px solid var(--border)',
+                        color: 'var(--text-sub)',
+                      }}
+                    >
+                      <X size={13} />
+                      取消
+                    </button>
+                    <button
+                      onClick={confirmPendingActions}
+                      className="flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-semibold text-white"
+                      style={{ background: 'var(--primary)' }}
+                    >
+                      <Check size={13} />
+                      确认执行
+                    </button>
+                  </div>
+                </div>
+              )}
 
-          {busy && (
-            <div className="flex justify-start">
-              <div
-                className="flex items-center gap-2 rounded-2xl px-3 py-2 text-sm"
-                style={{ background: 'var(--bg-muted)', color: 'var(--text-muted)', border: '1px solid var(--border)' }}
+              {busy && (
+                <div className="flex justify-start">
+                  <div
+                    className="flex items-center gap-2 rounded-2xl px-3 py-2 text-sm"
+                    style={{
+                      background: 'var(--bg-muted)',
+                      color: 'var(--text-muted)',
+                      border: '1px solid var(--border)',
+                    }}
+                  >
+                    <LoaderCircle size={14} className="animate-spin" />
+                    正在思考
+                  </div>
+                </div>
+              )}
+
+              <div ref={bottomRef} />
+            </div>
+
+            <div
+              className="flex gap-2 items-end p-4 flex-shrink-0"
+              style={{ borderTop: '1px solid var(--border)' }}
+            >
+              <textarea
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault()
+                    send()
+                  }
+                }}
+                placeholder={ready ? '发送消息… (Enter 发送)' : '登录后可使用 AI'}
+                rows={1}
+                disabled={!ready || busy || pendingActions.length > 0}
+                className="flex-1 rounded-xl px-3 py-2 text-sm outline-none resize-none disabled:opacity-60"
+                style={{
+                  background: 'var(--bg-muted)',
+                  border: '1.5px solid var(--border)',
+                  color: 'var(--text)',
+                  fontFamily: "'DM Sans', sans-serif",
+                  maxHeight: '120px',
+                }}
+              />
+              <button
+                onClick={send}
+                disabled={!input.trim() || !ready || busy || pendingActions.length > 0}
+                className="p-2 rounded-xl flex-shrink-0 transition-all disabled:opacity-60"
+                style={{ background: input.trim() && ready && !busy ? 'var(--primary)' : 'var(--border)' }}
+                title="发送"
               >
-                <LoaderCircle size={14} className="animate-spin" />
-                正在思考
-              </div>
+                <Send size={14} style={{ color: input.trim() && ready && !busy ? '#fff' : 'var(--text-muted)' }} />
+              </button>
             </div>
-          )}
+          </>
+        ) : (
+          <>
+            <div
+              className="flex flex-shrink-0 items-center justify-between gap-2 px-4 py-3"
+              style={{ borderBottom: '1px solid var(--border)' }}
+            >
+              <div className="min-w-0">
+                <div style={{ color: 'var(--text)', fontSize: '13px', fontWeight: 700 }}>长期记忆</div>
+                <div style={{ color: 'var(--text-muted)', fontSize: '11px' }}>{memories.length} 条</div>
+              </div>
+              <button
+                onClick={() => void loadMemories()}
+                disabled={!ready || memoryLoading}
+                className="btn-icon-hover flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-semibold disabled:opacity-60"
+                style={{
+                  background: 'var(--bg-muted)',
+                  border: '1px solid var(--border)',
+                  color: 'var(--text-sub)',
+                }}
+                title="刷新"
+              >
+                <RefreshCw size={13} className={memoryLoading ? 'animate-spin' : ''} />
+                刷新
+              </button>
+            </div>
 
-          <div ref={bottomRef} />
-        </div>
+            <div className="flex-1 overflow-y-auto flex flex-col gap-3 p-4">
+              {memoryError && (
+                <div
+                  className="rounded-2xl px-3 py-2 text-sm"
+                  style={{
+                    background: 'rgba(196,128,122,0.12)',
+                    border: '1px solid rgba(196,128,122,0.24)',
+                    color: '#9B4A45',
+                  }}
+                >
+                  <AlertCircle size={13} style={{ display: 'inline', marginRight: '6px', verticalAlign: '-2px' }} />
+                  {memoryError}
+                </div>
+              )}
 
-        <div
-          className="flex gap-2 items-end p-4 flex-shrink-0"
-          style={{ borderTop: '1px solid var(--border)' }}
-        >
-          <textarea
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault()
-                send()
-              }
-            }}
-            placeholder={ready ? '发送消息… (Enter 发送)' : '登录后可使用 AI'}
-            rows={1}
-            disabled={!ready || busy || pendingActions.length > 0}
-            className="flex-1 rounded-xl px-3 py-2 text-sm outline-none resize-none disabled:opacity-60"
-            style={{
-              background: 'var(--bg-muted)',
-              border: '1.5px solid var(--border)',
-              color: 'var(--text)',
-              fontFamily: "'DM Sans', sans-serif",
-              maxHeight: '120px',
-            }}
-          />
-          <button
-            onClick={send}
-            disabled={!input.trim() || !ready || busy || pendingActions.length > 0}
-            className="p-2 rounded-xl flex-shrink-0 transition-all disabled:opacity-60"
-            style={{ background: input.trim() && ready && !busy ? 'var(--primary)' : 'var(--border)' }}
-            title="发送"
-          >
-            <Send size={14} style={{ color: input.trim() && ready && !busy ? '#fff' : 'var(--text-muted)' }} />
-          </button>
-        </div>
+              {memoryLoading && memories.length === 0 && (
+                <div
+                  className="flex items-center justify-center gap-2 rounded-2xl px-3 py-4 text-sm"
+                  style={{ background: 'var(--bg-muted)', color: 'var(--text-muted)', border: '1px solid var(--border)' }}
+                >
+                  <LoaderCircle size={14} className="animate-spin" />
+                  正在加载
+                </div>
+              )}
+
+              {!memoryLoading && memories.length === 0 && (
+                <div className="flex flex-col items-center justify-center h-full gap-3 text-center">
+                  <Brain size={34} style={{ color: 'var(--border)' }} />
+                  <p style={{ fontSize: '14px', color: 'var(--text-muted)' }}>暂无长期记忆</p>
+                </div>
+              )}
+
+              {memories.map((memory) => {
+                const editing = editingMemoryId === memory.id
+                return (
+                  <div
+                    key={memory.id}
+                    className="rounded-2xl p-3"
+                    style={{
+                      background: 'var(--bg-muted)',
+                      border: '1px solid var(--border)',
+                      color: 'var(--text-sub)',
+                    }}
+                  >
+                    {editing ? (
+                      <div className="flex flex-col gap-2">
+                        <div className="flex gap-2">
+                          <select
+                            value={memoryDraft.memory_type}
+                            onChange={(event) =>
+                              setMemoryDraft((draft) => ({
+                                ...draft,
+                                memory_type: event.target.value as AssistantMemoryType,
+                              }))
+                            }
+                            className="min-w-0 flex-1 rounded-xl px-2 py-2 text-xs outline-none"
+                            style={{
+                              background: 'var(--bg-card)',
+                              border: '1px solid var(--border)',
+                              color: 'var(--text-sub)',
+                            }}
+                          >
+                            {MEMORY_TYPE_OPTIONS.map((type) => (
+                              <option key={type} value={type}>
+                                {MEMORY_TYPE_LABELS[type]}
+                              </option>
+                            ))}
+                          </select>
+                          <input
+                            value={memoryDraft.scope}
+                            onChange={(event) =>
+                              setMemoryDraft((draft) => ({ ...draft, scope: event.target.value }))
+                            }
+                            className="w-24 rounded-xl px-2 py-2 text-xs outline-none"
+                            style={{
+                              background: 'var(--bg-card)',
+                              border: '1px solid var(--border)',
+                              color: 'var(--text-sub)',
+                            }}
+                          />
+                        </div>
+                        <input
+                          value={memoryDraft.title}
+                          onChange={(event) =>
+                            setMemoryDraft((draft) => ({ ...draft, title: event.target.value }))
+                          }
+                          className="rounded-xl px-3 py-2 text-sm font-semibold outline-none"
+                          style={{
+                            background: 'var(--bg-card)',
+                            border: '1px solid var(--border)',
+                            color: 'var(--text)',
+                          }}
+                        />
+                        <textarea
+                          value={memoryDraft.body}
+                          onChange={(event) =>
+                            setMemoryDraft((draft) => ({ ...draft, body: event.target.value }))
+                          }
+                          rows={4}
+                          className="rounded-xl px-3 py-2 text-sm outline-none resize-none"
+                          style={{
+                            background: 'var(--bg-card)',
+                            border: '1px solid var(--border)',
+                            color: 'var(--text-sub)',
+                            fontFamily: "'DM Sans', sans-serif",
+                          }}
+                        />
+                        <div className="flex justify-end gap-2">
+                          <button
+                            onClick={cancelEditingMemory}
+                            className="flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-semibold"
+                            style={{
+                              background: 'var(--bg-card)',
+                              border: '1px solid var(--border)',
+                              color: 'var(--text-sub)',
+                            }}
+                          >
+                            <X size={13} />
+                            取消
+                          </button>
+                          <button
+                            onClick={() => void saveMemoryEdit(memory.id)}
+                            disabled={memorySavingId === memory.id}
+                            className="flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-semibold text-white disabled:opacity-60"
+                            style={{ background: 'var(--primary)' }}
+                          >
+                            {memorySavingId === memory.id ? (
+                              <LoaderCircle size={13} className="animate-spin" />
+                            ) : (
+                              <Save size={13} />
+                            )}
+                            保存
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex flex-col gap-2">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0">
+                            <div className="flex flex-wrap items-center gap-1.5">
+                              <span
+                                className="rounded-full px-2 py-1 text-[10px] font-semibold"
+                                style={{
+                                  background: 'var(--bg-card)',
+                                  border: '1px solid var(--border)',
+                                  color: 'var(--primary-dark)',
+                                }}
+                              >
+                                {MEMORY_TYPE_LABELS[memory.memory_type]}
+                              </span>
+                              <span style={{ color: 'var(--text-muted)', fontSize: '10px' }}>
+                                {Math.round(memory.confidence * 100)}%
+                              </span>
+                            </div>
+                            <div
+                              className="mt-2"
+                              style={{ color: 'var(--text)', fontSize: '14px', fontWeight: 700, lineHeight: 1.35 }}
+                            >
+                              {memory.title}
+                            </div>
+                          </div>
+                          <div className="flex flex-shrink-0 gap-1">
+                            <button
+                              onClick={() => startEditingMemory(memory)}
+                              className="btn-icon-hover rounded-lg p-1.5"
+                              style={{ color: 'var(--text-muted)' }}
+                              title="编辑"
+                            >
+                              <Edit3 size={13} />
+                            </button>
+                            <button
+                              onClick={() => void removeMemory(memory.id)}
+                              disabled={memoryDeletingId === memory.id}
+                              className="btn-icon-hover rounded-lg p-1.5 disabled:opacity-60"
+                              style={{ color: '#9B4A45' }}
+                              title="删除"
+                            >
+                              {memoryDeletingId === memory.id ? (
+                                <LoaderCircle size={13} className="animate-spin" />
+                              ) : (
+                                <Trash2 size={13} />
+                              )}
+                            </button>
+                          </div>
+                        </div>
+                        <div style={{ fontSize: '12px', lineHeight: 1.55, whiteSpace: 'pre-wrap' }}>{memory.body}</div>
+                        <div style={{ color: 'var(--text-muted)', fontSize: '10px', lineHeight: 1.5 }}>
+                          {memory.scope} · 来源 {memory.source_reflection_keys.slice(0, 2).join(', ') || '无'} · 最近{' '}
+                          {formatMemoryDate(memory.last_seen_at)}
+                          {memory.user_modified_at ? ' · 用户编辑' : ''}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          </>
+        )}
       </div>
     </>
   )

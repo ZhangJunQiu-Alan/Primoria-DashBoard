@@ -9,6 +9,7 @@ import {
 import { Cloud, Database, Download, Upload } from 'lucide-react'
 import { toast } from 'sonner'
 import { useBehaviorEventSync } from '@/hooks/useBehaviorEventSync'
+import { indexAssistantRag } from '@/lib/ai/api'
 import { withBehaviorTrackingSuppressed } from '@/lib/behaviorEvents'
 import {
   MAX_BACKGROUND_IMAGE_BYTES,
@@ -167,6 +168,14 @@ export function CloudSyncProvider({ children }: { children: ReactNode }) {
     if (!result.ok) {
       setMessage(`快照已同步，但内容索引失败：${result.error ?? '未知错误'}`)
       return false
+    }
+    try {
+      const ragResult = await indexAssistantRag({ limit: 40, sourceTypes: ['content_item'] })
+      if (ragResult.remaining > 0) {
+        setMessage(`内容索引已同步，RAG 还有 ${ragResult.remaining} 条将在下次同步继续。`)
+      }
+    } catch (error) {
+      setMessage(`内容索引已同步，但 RAG 索引失败：${getErrorMessage(error, '未知错误')}`)
     }
     return true
   }, [])

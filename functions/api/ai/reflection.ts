@@ -9,6 +9,12 @@ import {
   generateGeminiContent,
   getGeminiModel,
 } from '../../_shared/gemini'
+import { extractAssistantMemories } from '../../_shared/memory'
+import {
+  indexAssistantRag,
+  retrieveAssistantRag,
+  type AssistantRagSource,
+} from '../../_shared/rag'
 import {
   buildReflectionPrompt,
   buildRuleReflection,
@@ -19,6 +25,8 @@ import {
   readReflectionSourceRows,
   upsertReflection,
   type AssistantReflectionPeriodType,
+  type AssistantReflectionResult,
+  type StoredReflectionRow,
 } from '../../_shared/reflection'
 
 interface ReflectionBody {
@@ -41,6 +49,97 @@ const REFLECTION_SYSTEM_PROMPT = `
 只输出严格 JSON，不要 Markdown，不要执行或承诺执行任何 Dashboard 写入动作。
 建议只能是低风险文本建议；如果需要改任务、便签、布局或习惯，只能建议用户之后通过 pending action 确认。
 `.trim()
+
+async function safeExtractMemories({
+  env,
+  reflection,
+  userId,
+}: {
+  env: PagesContext['env']
+  reflection: AssistantReflectionResult | StoredReflectionRow
+  userId: string
+}) {
+  try {
+    return await extractAssistantMemories({ env, reflection, userId })
+  } catch {
+    return { created: 0, extracted: false, skipped: 1, updated: 0 }
+  }
+}
+
+async function safeRetrieveReflectionRag({
+  env,
+  query,
+  userId,
+}: {
+  env: PagesContext['env']
+  query: string
+  userId: string
+}) {
+  try {
+    return await retrieveAssistantRag({
+      env,
+      query,
+      sourceTypes: ['assistant_memory', 'assistant_reflection'],
+      userId,
+    })
+  } catch {
+    return { ragContext: '', ragSources: [] as AssistantRagSource[] }
+  }
+}
+
+async function safeIndexReflectionMemory({
+  env,
+  userId,
+}: {
+  env: PagesContext['env']
+  userId: string
+}) {
+  try {
+    await indexAssistantRag({
+      env,
+      sourceTypes: ['assistant_reflection', 'assistant_memory'],
+      userId,
+    })
+  } catch {
+    return
+  }
+}
+
+function buildReflectionRagQuery({
+  period,
+  periodType,
+  ruleResult,
+}: {
+  period: ReturnType<typeof getReflectionPeriod>
+  periodType: AssistantReflectionPeriodType
+  ruleResult: AssistantReflectionResult
+}) {
+  return JSON.stringify({
+    completion_summary: ruleResult.completion_summary,
+    intent: 'assistant_reflection',
+    period_end: period.periodEnd,
+    period_start: period.periodStart,
+    period_type: periodType,
+    priorities: ruleResult.priority_items.slice(0, 8).map((item) => ({
+      reason: item.reason,
+      title: item.title,
+    })),
+    summary: ruleResult.summary,
+    suggestions: ruleResult.suggestions,
+  })
+}
+
+function appendRagContextToReflectionPrompt(prompt: string, ragContext: string) {
+  if (!ragContext) return prompt
+  try {
+    return JSON.stringify({
+      rag_context: JSON.parse(ragContext),
+      reflection_input: JSON.parse(prompt),
+    })
+  } catch {
+    return `${prompt}\n\nRAG_CONTEXT:\n${ragContext}`
+  }
+}
 
 export async function onRequestPost({ env, request }: PagesContext) {
   try {
@@ -67,27 +166,41 @@ export async function onRequestPost({ env, request }: PagesContext) {
       userId: user.id,
     })
 
-    if (cached?.source_fingerprint === sourceFingerprint) {
-      return jsonResponse({ ...cached, cached: true })
-    }
-
     const ruleResult = {
       ...buildRuleReflection(sourceContext),
       source_fingerprint: sourceFingerprint,
     }
+    const rag = await safeRetrieveReflectionRag({
+      env,
+      query: buildReflectionRagQuery({ period, periodType, ruleResult }),
+      userId: user.id,
+    })
+
+    if (cached?.source_fingerprint === sourceFingerprint) {
+      const memoryUpdates = await safeExtractMemories({ env, reflection: cached, userId: user.id })
+      await safeIndexReflectionMemory({ env, userId: user.id })
+      return jsonResponse({
+        ...cached,
+        cached: true,
+        memory_updates: memoryUpdates,
+        rag_sources: rag.ragSources,
+      })
+    }
+
     const model = getGeminiModel(env)
     let result = ruleResult
 
     try {
+      const reflectionPrompt = buildReflectionPrompt(sourceContext, ruleResult)
       const generated = await generateGeminiContent({
         contents: [
           {
             role: 'user',
-            parts: [{ text: buildReflectionPrompt(sourceContext, ruleResult) }],
+            parts: [{ text: appendRagContextToReflectionPrompt(reflectionPrompt, rag.ragContext) }],
           },
         ],
         env,
-        systemInstruction: REFLECTION_SYSTEM_PROMPT,
+        systemInstruction: `${REFLECTION_SYSTEM_PROMPT}\n如果提供了 rag_context，只把它作为反思辅助背景，不要虚构未提供的事实。`,
       })
       result = mergeLlmReflection(generated.text, ruleResult, model)
     } catch {
@@ -99,7 +212,9 @@ export async function onRequestPost({ env, request }: PagesContext) {
     }
 
     await upsertReflection({ env, result, userId: user.id })
-    return jsonResponse(result)
+    const memoryUpdates = await safeExtractMemories({ env, reflection: result, userId: user.id })
+    await safeIndexReflectionMemory({ env, userId: user.id })
+    return jsonResponse({ ...result, memory_updates: memoryUpdates, rag_sources: rag.ragSources })
   } catch (error) {
     return errorResponse(error)
   }

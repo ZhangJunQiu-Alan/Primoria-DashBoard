@@ -3,6 +3,11 @@ import { addDaysToDateKey, formatLocalDateKey, parseLocalDateKey } from '@/lib/d
 import type {
   AssistantReflectionPeriodType,
   AssistantReflectionResult,
+  AssistantMemory,
+  AssistantMemoryType,
+  AssistantRagIndexResult,
+  AssistantRagSource,
+  AssistantRagSourceType,
   CalendarEvent,
   DailyBriefResult,
   GeminiContent,
@@ -62,6 +67,7 @@ export async function sendAgentTurn({ messages }: { messages: GeminiContent[]; t
     modelContent: GeminiContent
     text: string
     functionCalls: Array<{ id?: string; name: string; args?: Record<string, unknown> }>
+    rag_sources?: AssistantRagSource[]
     usageMetadata: unknown
   }>
 }
@@ -124,6 +130,40 @@ export async function generateAssistantReflection({
       ...getReflectionRequestRange(periodType, date),
     }),
   }) as Promise<AssistantReflectionResult>
+}
+
+export async function fetchAssistantMemories() {
+  return authedFetch('/api/ai/memories', { method: 'GET' }) as Promise<{ memories: AssistantMemory[] }>
+}
+
+export async function updateAssistantMemory(input: {
+  body?: string
+  id: string
+  memory_type?: AssistantMemoryType
+  scope?: string
+  title?: string
+}) {
+  return authedFetch('/api/ai/memories', {
+    method: 'PATCH',
+    body: JSON.stringify(input),
+  }) as Promise<{ memory: AssistantMemory }>
+}
+
+export async function deleteAssistantMemory(id: string) {
+  const params = new URLSearchParams({ id })
+  return authedFetch(`/api/ai/memories?${params.toString()}`, {
+    method: 'DELETE',
+  }) as Promise<{ deleted: boolean }>
+}
+
+export async function indexAssistantRag(input: {
+  limit?: number
+  sourceTypes?: AssistantRagSourceType[]
+} = {}) {
+  return authedFetch('/api/ai/rag/index', {
+    method: 'POST',
+    body: JSON.stringify(input),
+  }) as Promise<AssistantRagIndexResult>
 }
 
 export async function saveCalendarConnectionFromSession(session: Session | null) {

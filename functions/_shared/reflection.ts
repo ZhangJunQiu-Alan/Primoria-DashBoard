@@ -76,6 +76,15 @@ export interface AssistantReflectionResult {
   evidence: AssistantEvidenceItem[]
   generated_at: string
   habit_signals: AssistantHabitSignal[]
+  memory_extracted_at?: string | null
+  memory_source_fingerprint?: string | null
+  memory_update_count?: number
+  memory_updates?: {
+    created: number
+    extracted: boolean
+    skipped: number
+    updated: number
+  }
   model: string | null
   period_end: string
   period_start: string
@@ -93,6 +102,9 @@ export interface StoredReflectionRow {
   evidence: AssistantEvidenceItem[]
   generated_at: string
   habit_signals: AssistantHabitSignal[]
+  memory_extracted_at: string | null
+  memory_source_fingerprint: string | null
+  memory_update_count: number
   model: string | null
   period_end: string
   period_start: string
@@ -246,7 +258,7 @@ export async function readCachedReflection({
   const supabaseUrl = getSupabaseRestUrl(env)
   const params = new URLSearchParams({
     reflection_key: `eq.${reflectionKey}`,
-    select: 'completion_summary,evidence,generated_at,habit_signals,model,period_end,period_start,period_type,priority_items,reflection_key,schema_version,source_fingerprint,suggestions,summary',
+    select: 'completion_summary,evidence,generated_at,habit_signals,memory_extracted_at,memory_source_fingerprint,memory_update_count,model,period_end,period_start,period_type,priority_items,reflection_key,schema_version,source_fingerprint,suggestions,summary',
     user_id: `eq.${userId}`,
   })
   const response = await fetch(`${supabaseUrl}/rest/v1/user_assistant_reflections?${params.toString()}`, {

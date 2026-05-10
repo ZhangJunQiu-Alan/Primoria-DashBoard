@@ -30,11 +30,62 @@ export interface CalendarEvent {
 }
 
 export interface DailyBriefResult {
+  rag_sources?: AssistantRagSource[]
   summary: string
   recommendation: string
 }
 
 export type AssistantReflectionPeriodType = 'daily' | 'weekly'
+
+export type AssistantMemoryType =
+  | 'user_preference'
+  | 'work_habit'
+  | 'project_fact'
+  | 'process_rule'
+
+export interface AssistantMemory {
+  body: string
+  confidence: number
+  created_at: string
+  evidence: Record<string, unknown>[]
+  id: string
+  last_seen_at: string
+  memory_type: AssistantMemoryType
+  schema_version: 1
+  scope: string
+  source_reflection_keys: string[]
+  title: string
+  updated_at: string
+  user_modified_at: string | null
+}
+
+export interface AssistantMemoryUpdateSummary {
+  created: number
+  extracted: boolean
+  skipped: number
+  updated: number
+}
+
+export type AssistantRagSourceType =
+  | 'content_item'
+  | 'assistant_reflection'
+  | 'assistant_memory'
+
+export interface AssistantRagSource {
+  excerpt: string
+  metadata: Record<string, unknown>
+  similarity: number
+  source_key: string
+  source_type: AssistantRagSourceType
+  title: string
+}
+
+export interface AssistantRagIndexResult {
+  indexed: number
+  remaining: number
+  skipped: number
+  staleDeleted: number
+}
 
 export interface AssistantPriorityItem {
   confidence: number
@@ -73,11 +124,13 @@ export interface AssistantReflectionResult {
   evidence: AssistantEvidenceItem[]
   generated_at: string
   habit_signals: AssistantHabitSignal[]
+  memory_updates?: AssistantMemoryUpdateSummary
   model: string | null
   period_end: string
   period_start: string
   period_type: AssistantReflectionPeriodType
   priority_items: AssistantPriorityItem[]
+  rag_sources?: AssistantRagSource[]
   reflection_key: string
   schema_version: 1
   source_fingerprint: string

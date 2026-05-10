@@ -9,6 +9,7 @@ import {
   DAILY_BRIEF_SYSTEM_PROMPT,
   generateGeminiContent,
 } from '../../_shared/gemini'
+import { retrieveAssistantRag } from '../../_shared/rag'
 
 interface BriefBody {
   context: unknown
@@ -32,8 +33,17 @@ function parseBriefText(text: string) {
 
 export async function onRequestPost({ env, request }: PagesContext) {
   try {
-    await requireUser(request, env)
+    const user = await requireUser(request, env)
     const body = await readJsonBody<BriefBody>(request)
+    const rag = await retrieveAssistantRag({
+      env,
+      query: JSON.stringify({
+        context: body.context,
+        date: body.date,
+        intent: 'daily_brief',
+      }),
+      userId: user.id,
+    })
 
     const result = await generateGeminiContent({
       contents: [
@@ -44,16 +54,17 @@ export async function onRequestPost({ env, request }: PagesContext) {
               text: JSON.stringify({
                 date: body.date,
                 context: body.context,
+                rag_context: rag.ragContext ? JSON.parse(rag.ragContext) : null,
               }),
             },
           ],
         },
       ],
       env,
-      systemInstruction: DAILY_BRIEF_SYSTEM_PROMPT,
+      systemInstruction: `${DAILY_BRIEF_SYSTEM_PROMPT}\n\n如果提供了 rag_context，只把它作为辅助背景，不要把来源列表写进 JSON 字段。`,
     })
 
-    return jsonResponse(parseBriefText(result.text))
+    return jsonResponse({ ...parseBriefText(result.text), rag_sources: rag.ragSources })
   } catch (error) {
     return errorResponse(error)
   }

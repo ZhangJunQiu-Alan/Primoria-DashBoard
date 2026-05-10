@@ -3,7 +3,7 @@ import { CalendarDays, LoaderCircle, RefreshCw, Sparkles } from 'lucide-react'
 import { toast } from 'sonner'
 import { connectGoogleCalendar, fetchCalendarEvents, fetchCalendarStatus, generateDailyBrief } from '@/lib/ai/api'
 import { buildBriefContext, getLocalDayIsoRange } from '@/lib/ai/briefContext'
-import type { CalendarEvent } from '@/lib/ai/types'
+import type { AssistantRagSource, CalendarEvent } from '@/lib/ai/types'
 import { summarizeText, trackBehaviorEvent } from '@/lib/behaviorEvents'
 import { useCloudSync } from '@/components/cloud/cloudSyncContext'
 import { useCurrentDayKey } from '@/hooks/useCurrentDayKey'
@@ -11,6 +11,16 @@ import { useWidgetDataStore } from '@/store/widgetDataStore'
 
 interface DailyBriefWidgetProps {
   widgetId: string
+}
+
+const RAG_SOURCE_LABELS = {
+  assistant_memory: '记忆',
+  assistant_reflection: '反思',
+  content_item: '内容',
+} satisfies Record<AssistantRagSource['source_type'], string>
+
+function formatRagScore(value: number) {
+  return `${Math.round(Math.max(0, Math.min(1, value)) * 100)}%`
 }
 
 export function DailyBriefWidget({ widgetId: _widgetId }: DailyBriefWidgetProps) {
@@ -85,6 +95,7 @@ export function DailyBriefWidget({ widgetId: _widgetId }: DailyBriefWidgetProps)
         calendarConnected: connected,
         date: today,
         generatedAt: new Date().toISOString(),
+        ragSources: result.rag_sources ?? [],
         recommendation: result.recommendation,
         sourceFingerprint,
         summary: result.summary,
@@ -204,6 +215,21 @@ export function DailyBriefWidget({ widgetId: _widgetId }: DailyBriefWidgetProps)
                 {brief.recommendation}
               </p>
             </div>
+            {brief.ragSources && brief.ragSources.length > 0 && (
+              <div className="flex flex-col gap-1">
+                <div style={{ color: 'var(--text-muted)', fontSize: '10px', fontWeight: 700 }}>参考来源</div>
+                {brief.ragSources.slice(0, 3).map((source) => (
+                  <div
+                    key={`${source.source_type}:${source.source_key}`}
+                    className="truncate"
+                    style={{ color: 'var(--text-muted)', fontSize: '10px', lineHeight: 1.4 }}
+                    title={source.excerpt}
+                  >
+                    {RAG_SOURCE_LABELS[source.source_type]} · {source.title} · {formatRagScore(source.similarity)}
+                  </div>
+                ))}
+              </div>
+            )}
           </>
         )}
 
