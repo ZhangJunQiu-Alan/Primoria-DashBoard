@@ -18,6 +18,7 @@ export function DailyBriefWidget({ widgetId: _widgetId }: DailyBriefWidgetProps)
   const today = useCurrentDayKey()
   const brief = useWidgetDataStore((s) => s.dailyBriefsByDate[today])
   const setDailyBrief = useWidgetDataStore((s) => s.setDailyBrief)
+  const setCalendarEventsForDate = useWidgetDataStore((s) => s.setCalendarEventsForDate)
   const removeDailyBrief = useWidgetDataStore((s) => s.removeDailyBrief)
   const [calendarConnected, setCalendarConnected] = useState(false)
   const [loading, setLoading] = useState(false)
@@ -58,6 +59,7 @@ export function DailyBriefWidget({ widgetId: _widgetId }: DailyBriefWidgetProps)
         const calendar = await fetchCalendarEvents(range)
         connected = calendar.connected
         events = calendar.events
+        setCalendarEventsForDate(today, events)
         trackBehaviorEvent({
           actor: 'system',
           eventName: 'daily_brief.calendar_status_loaded',
@@ -71,6 +73,7 @@ export function DailyBriefWidget({ widgetId: _widgetId }: DailyBriefWidgetProps)
       } catch {
         connected = false
         events = []
+        setCalendarEventsForDate(today, events)
       }
 
       setCalendarConnected(connected)
@@ -103,7 +106,7 @@ export function DailyBriefWidget({ widgetId: _widgetId }: DailyBriefWidgetProps)
     } finally {
       setLoading(false)
     }
-  }, [_widgetId, brief?.sourceFingerprint, loading, ready, setDailyBrief, today])
+  }, [_widgetId, brief?.sourceFingerprint, loading, ready, setCalendarEventsForDate, setDailyBrief, today])
 
   useEffect(() => {
     if (!ready || brief || loading) return

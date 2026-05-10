@@ -18,7 +18,10 @@ function resetStores(widgets: WidgetInstance[] = []) {
     widgets,
   })
   useWidgetDataStore.setState({
+    activeAiConversationId: 'default-dashboard-agent',
+    aiConversations: {},
     calendarEmbeds: {},
+    calendarEventsByDate: {},
     dailyBriefsByDate: {},
     habitLogs: {},
     habitsByWidget: {},

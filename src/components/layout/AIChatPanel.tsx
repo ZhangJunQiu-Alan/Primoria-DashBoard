@@ -9,12 +9,13 @@ import {
 } from '@/lib/behaviorEvents'
 import type { GeminiContent, PendingAction } from '@/lib/ai/types'
 import { useCloudSync } from '@/components/cloud/cloudSyncContext'
-
-interface Message {
-  id: string
-  role: 'user' | 'assistant' | 'system'
-  content: string
-}
+import {
+  DEFAULT_AI_CONVERSATION_ID,
+  createAiConversationState,
+  useWidgetDataStore,
+  type AiConversationMessage,
+  type AiToolCallRecord,
+} from '@/store/widgetDataStore'
 
 interface AIChatPanelProps {
   open: boolean
@@ -23,6 +24,10 @@ interface AIChatPanelProps {
 
 function makeMessageId() {
   return `msg-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+}
+
+function makeToolCallRecordId(name: string) {
+  return `tool-${name}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
 }
 
 function makeFunctionResponsePart(
@@ -44,12 +49,26 @@ function summarizePendingActions(actions: PendingAction[]) {
 
 export function AIChatPanel({ open, onClose }: AIChatPanelProps) {
   const { configured, user } = useCloudSync()
-  const [messages, setMessages] = useState<Message[]>([])
+  const saveAiConversation = useWidgetDataStore((s) => s.saveAiConversation)
+  const storedConversation = useWidgetDataStore((s) => s.aiConversations[DEFAULT_AI_CONVERSATION_ID])
+  const initialConversationRef = useRef(
+    useWidgetDataStore.getState().aiConversations[DEFAULT_AI_CONVERSATION_ID] ??
+      createAiConversationState()
+  )
+  const [messages, setMessages] = useState<AiConversationMessage[]>(
+    initialConversationRef.current.messages
+  )
   const [input, setInput] = useState('')
   const [busy, setBusy] = useState(false)
-  const [pendingActions, setPendingActions] = useState<PendingAction[]>([])
+  const [pendingActions, setPendingActions] = useState<PendingAction[]>(
+    initialConversationRef.current.pendingActions
+  )
   const bottomRef = useRef<HTMLDivElement>(null)
-  const contentsRef = useRef<GeminiContent[]>([])
+  const contentsRef = useRef<GeminiContent[]>(initialConversationRef.current.geminiContents)
+  const messagesRef = useRef<AiConversationMessage[]>(initialConversationRef.current.messages)
+  const pendingActionsRef = useRef<PendingAction[]>(initialConversationRef.current.pendingActions)
+  const toolCallsRef = useRef<AiToolCallRecord[]>(initialConversationRef.current.toolCalls)
+  const loadedUpdatedAtRef = useRef(initialConversationRef.current.updatedAt)
 
   const ready = configured && Boolean(user)
 
@@ -57,8 +76,70 @@ export function AIChatPanel({ open, onClose }: AIChatPanelProps) {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages, pendingActions, busy])
 
-  function appendMessage(message: Omit<Message, 'id'>) {
-    setMessages((prev) => [...prev, { ...message, id: makeMessageId() }])
+  useEffect(() => {
+    if (!storedConversation || busy) return
+    if (loadedUpdatedAtRef.current === storedConversation.updatedAt) return
+    if (
+      messagesRef.current.length > 0 ||
+      contentsRef.current.length > 0 ||
+      pendingActionsRef.current.length > 0
+    ) {
+      return
+    }
+
+    messagesRef.current = storedConversation.messages
+    contentsRef.current = storedConversation.geminiContents
+    pendingActionsRef.current = storedConversation.pendingActions
+    toolCallsRef.current = storedConversation.toolCalls
+    loadedUpdatedAtRef.current = storedConversation.updatedAt
+    setMessages(storedConversation.messages)
+    setPendingActions(storedConversation.pendingActions)
+  }, [busy, storedConversation])
+
+  function persistConversation() {
+    const now = new Date().toISOString()
+    const previous =
+      useWidgetDataStore.getState().aiConversations[DEFAULT_AI_CONVERSATION_ID] ??
+      initialConversationRef.current
+    const firstUserMessage = messagesRef.current.find((message) => message.role === 'user')
+    const nextConversation = {
+      ...previous,
+      geminiContents: contentsRef.current,
+      id: DEFAULT_AI_CONVERSATION_ID,
+      messages: messagesRef.current,
+      pendingActions: pendingActionsRef.current,
+      title: firstUserMessage?.content
+        ? summarizeText(firstUserMessage.content, 40)
+        : previous.title,
+      toolCalls: toolCallsRef.current,
+      updatedAt: now,
+    }
+
+    loadedUpdatedAtRef.current = now
+    saveAiConversation(nextConversation)
+  }
+
+  function appendMessage(message: Omit<AiConversationMessage, 'createdAt' | 'id'>) {
+    const nextMessage: AiConversationMessage = {
+      ...message,
+      createdAt: new Date().toISOString(),
+      id: makeMessageId(),
+    }
+    messagesRef.current = [...messagesRef.current, nextMessage]
+    setMessages(messagesRef.current)
+    persistConversation()
+  }
+
+  function setPendingActionsAndPersist(actions: PendingAction[]) {
+    pendingActionsRef.current = actions
+    setPendingActions(actions)
+    persistConversation()
+  }
+
+  function appendToolCalls(records: AiToolCallRecord[]) {
+    if (records.length === 0) return
+    toolCallsRef.current = [...toolCallsRef.current, ...records]
+    persistConversation()
   }
 
   async function runAgentLoop(contents: GeminiContent[]) {
@@ -70,6 +151,8 @@ export function AIChatPanel({ open, onClose }: AIChatPanelProps) {
         const response = await sendAgentTurn({ messages: nextContents })
         const modelContent = response.modelContent
         nextContents = [...nextContents, modelContent]
+        contentsRef.current = nextContents
+        persistConversation()
 
         if (response.functionCalls.length === 0) {
           contentsRef.current = nextContents
@@ -93,6 +176,7 @@ export function AIChatPanel({ open, onClose }: AIChatPanelProps) {
 
         const toolParts = []
         const actions: PendingAction[] = []
+        const toolRecords: AiToolCallRecord[] = []
 
         for (const call of response.functionCalls) {
           trackBehaviorEvent({
@@ -106,14 +190,23 @@ export function AIChatPanel({ open, onClose }: AIChatPanelProps) {
           const result = await executeDashboardTool(call)
           actions.push(...result.pendingActions)
           toolParts.push(makeFunctionResponsePart(call, { result: result.response }))
+          toolRecords.push({
+            args: call.args ?? {},
+            createdAt: new Date().toISOString(),
+            id: call.id ?? makeToolCallRecordId(call.name),
+            name: call.name,
+            result: result.response,
+          })
         }
+        appendToolCalls(toolRecords)
 
         const toolContent: GeminiContent = { role: 'user', parts: toolParts }
         nextContents = [...nextContents, toolContent]
+        contentsRef.current = nextContents
+        persistConversation()
 
         if (actions.length > 0) {
-          contentsRef.current = nextContents
-          setPendingActions(actions)
+          setPendingActionsAndPersist(actions)
           trackBehaviorEvent({
             actor: 'assistant',
             eventName: 'ai.pending_actions_created',
@@ -132,6 +225,7 @@ export function AIChatPanel({ open, onClose }: AIChatPanelProps) {
       }
 
       contentsRef.current = nextContents
+      persistConversation()
       appendMessage({ role: 'assistant', content: '这个请求需要更多步骤，我先暂停在这里。' })
     } catch (error) {
       const message = error instanceof Error ? error.message : 'AI 请求失败'
@@ -190,8 +284,6 @@ export function AIChatPanel({ open, onClose }: AIChatPanelProps) {
       summary: `确认执行 ${count} 项 AI 变更`,
       surface: 'ai_chat',
     })
-    setPendingActions([])
-    appendMessage({ role: 'assistant', content: `已执行 ${count} 项变更。` })
     contentsRef.current = [
       ...contentsRef.current,
       {
@@ -199,6 +291,8 @@ export function AIChatPanel({ open, onClose }: AIChatPanelProps) {
         parts: [{ text: `用户已确认并执行 ${count} 项 pending actions。` }],
       },
     ]
+    setPendingActionsAndPersist([])
+    appendMessage({ role: 'assistant', content: `已执行 ${count} 项变更。` })
   }
 
   function cancelPendingActions() {
@@ -216,8 +310,6 @@ export function AIChatPanel({ open, onClose }: AIChatPanelProps) {
       summary: `取消 ${count} 项 AI 待确认变更`,
       surface: 'ai_chat',
     })
-    setPendingActions([])
-    appendMessage({ role: 'assistant', content: `已取消 ${count} 项待确认变更。` })
     contentsRef.current = [
       ...contentsRef.current,
       {
@@ -225,6 +317,8 @@ export function AIChatPanel({ open, onClose }: AIChatPanelProps) {
         parts: [{ text: `用户已取消 ${count} 项 pending actions，不要写入这些变更。` }],
       },
     ]
+    setPendingActionsAndPersist([])
+    appendMessage({ role: 'assistant', content: `已取消 ${count} 项待确认变更。` })
   }
 
   return (

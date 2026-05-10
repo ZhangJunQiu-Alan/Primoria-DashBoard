@@ -29,6 +29,7 @@ import {
   type DashboardSnapshotRow,
   type User,
 } from '@/lib/supabase'
+import { syncUserContentItems } from '@/lib/userContentItems'
 import {
   CloudSyncContext,
   type CloudSyncContextValue,
@@ -161,6 +162,15 @@ export function CloudSyncProvider({ children }: { children: ReactNode }) {
     return nextPath
   }, [])
 
+  const syncContentIndex = useCallback(async (userId: string) => {
+    const result = await syncUserContentItems(userId)
+    if (!result.ok) {
+      setMessage(`快照已同步，但内容索引失败：${result.error ?? '未知错误'}`)
+      return false
+    }
+    return true
+  }, [])
+
   const pushLocalSnapshot = useCallback(async (userId: string) => {
     if (!supabase || syncingRef.current) return false
 
@@ -173,8 +183,9 @@ export function CloudSyncProvider({ children }: { children: ReactNode }) {
       const fingerprint = getLocalSnapshotFingerprint(backgroundPath)
 
       if (fingerprint === lastPushedFingerprintRef.current) {
+        const contentSynced = await syncContentIndex(userId)
         setStatus('ready')
-        setMessage('云同步已是最新')
+        if (contentSynced) setMessage('云同步已是最新')
         return true
       }
 
@@ -197,9 +208,10 @@ export function CloudSyncProvider({ children }: { children: ReactNode }) {
 
       backgroundPathRef.current = data.background_path
       lastPushedFingerprintRef.current = getLocalSnapshotFingerprint(data.background_path)
+      const contentSynced = await syncContentIndex(userId)
       setUpdatedAt(data.updated_at)
       setStatus('ready')
-      setMessage('已同步到云端')
+      if (contentSynced) setMessage('已同步到云端')
       return true
     } catch (error) {
       setStatus('error')
@@ -208,7 +220,7 @@ export function CloudSyncProvider({ children }: { children: ReactNode }) {
     } finally {
       syncingRef.current = false
     }
-  }, [ensureBackgroundUploaded])
+  }, [ensureBackgroundUploaded, syncContentIndex])
 
   const applyCloudRow = useCallback(async (row: DashboardSnapshotRow) => {
     if (!supabase || !user) return false

@@ -6,6 +6,7 @@ import {
   useWidgetDataStore,
   type DailyBriefData,
   type HabitItem,
+  type AiConversationState,
   type LinedNotesDocument,
   type PomodoroData,
   type QuickLink,
@@ -13,6 +14,7 @@ import {
   type TodoItem,
   normalizeLinedNotesDocument,
 } from '@/store/widgetDataStore'
+import type { CalendarEvent } from '@/lib/ai/types'
 
 export const DASHBOARD_STORAGE_KEY = 'primoria-dashboard'
 
@@ -33,6 +35,9 @@ export interface WidgetDataSnapshot {
   scheduledTasksByWidget: Record<string, ScheduledTask[]>
   pomodoro: PomodoroData
   dailyBriefsByDate: Record<string, DailyBriefData>
+  calendarEventsByDate: Record<string, CalendarEvent[]>
+  aiConversations: Record<string, AiConversationState>
+  activeAiConversationId: string
 }
 
 export interface LocalDashboardBackup {
@@ -73,9 +78,12 @@ export function applyDashboardSnapshot(snapshot: DashboardSnapshotData) {
 export function getWidgetDataSnapshot(): WidgetDataSnapshot {
   const {
     calendarEmbeds,
+    calendarEventsByDate,
     dailyBriefsByDate,
     habitLogs,
     habitsByWidget,
+    aiConversations,
+    activeAiConversationId,
     linedNotesByWidget,
     notesByWidget,
     pomodoro,
@@ -86,6 +94,7 @@ export function getWidgetDataSnapshot(): WidgetDataSnapshot {
 
   return cloneJson({
     calendarEmbeds,
+    calendarEventsByDate,
     dailyBriefsByDate,
     habitLogs,
     habitsByWidget,
@@ -95,6 +104,8 @@ export function getWidgetDataSnapshot(): WidgetDataSnapshot {
     quickLinks,
     scheduledTasksByWidget,
     todosByWidget,
+    aiConversations,
+    activeAiConversationId,
   })
 }
 
@@ -112,6 +123,7 @@ export function applyWidgetDataSnapshot(snapshot: WidgetDataSnapshot) {
     habitsByWidget: cloneJson(snapshot.habitsByWidget ?? {}),
     habitLogs: cloneJson(snapshot.habitLogs ?? {}),
     calendarEmbeds: cloneJson(snapshot.calendarEmbeds ?? {}),
+    calendarEventsByDate: cloneJson(snapshot.calendarEventsByDate ?? {}),
     notesByWidget: cloneJson(snapshot.notesByWidget ?? {}),
     linedNotesByWidget: cloneJson(normalizedLinedNotes),
     scheduledTasksByWidget: cloneJson(snapshot.scheduledTasksByWidget ?? {}),
@@ -121,6 +133,8 @@ export function applyWidgetDataSnapshot(snapshot: WidgetDataSnapshot) {
       lastSessionDate: new Date().toISOString().slice(0, 10),
     }),
     dailyBriefsByDate: cloneJson(snapshot.dailyBriefsByDate ?? {}),
+    aiConversations: cloneJson(snapshot.aiConversations ?? {}),
+    activeAiConversationId: cloneJson(snapshot.activeAiConversationId ?? 'default-dashboard-agent'),
   })
 }
 

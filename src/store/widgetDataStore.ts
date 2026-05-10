@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { getDomainFromUrl, summarizeText, trackBehaviorEvent } from '@/lib/behaviorEvents'
 import { formatLocalDateKey } from '@/lib/date'
+import type { CalendarEvent, GeminiContent, PendingAction } from '@/lib/ai/types'
 
 export interface QuickLink {
   id: string
@@ -54,6 +55,32 @@ export interface DailyBriefData {
   generatedAt: string
   calendarConnected: boolean
   sourceFingerprint: string
+}
+
+export interface AiConversationMessage {
+  id: string
+  role: 'user' | 'assistant' | 'system'
+  content: string
+  createdAt: string
+}
+
+export interface AiToolCallRecord {
+  id: string
+  name: string
+  args: Record<string, unknown>
+  result: Record<string, unknown>
+  createdAt: string
+}
+
+export interface AiConversationState {
+  id: string
+  title: string
+  messages: AiConversationMessage[]
+  geminiContents: GeminiContent[]
+  toolCalls: AiToolCallRecord[]
+  pendingActions: PendingAction[]
+  createdAt: string
+  updatedAt: string
 }
 
 interface WidgetDataState {
@@ -123,10 +150,21 @@ interface WidgetDataState {
   dailyBriefsByDate: Record<string, DailyBriefData>
   setDailyBrief: (brief: DailyBriefData) => void
   removeDailyBrief: (date: string) => void
+
+  // Calendar read results — per local date
+  calendarEventsByDate: Record<string, CalendarEvent[]>
+  setCalendarEventsForDate: (date: string, events: CalendarEvent[]) => void
+
+  // AI conversation history
+  aiConversations: Record<string, AiConversationState>
+  activeAiConversationId: string
+  saveAiConversation: (conversation: AiConversationState) => void
+  setActiveAiConversation: (conversationId: string) => void
 }
 
 export const WIDGET_DATA_STORAGE_KEY = 'primoria-widget-data'
 export const LINED_NOTES_DOCUMENT_VERSION = 1
+export const DEFAULT_AI_CONVERSATION_ID = 'default-dashboard-agent'
 const today = () => formatLocalDateKey()
 const makeId = () => `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
 const makeLinedNotePageId = () => `lined-note-page-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
@@ -146,6 +184,22 @@ export function createLinedNotesDocument(initialContent = ''): LinedNotesDocumen
 
 export function createBlankLinedNotePage(): LinedNotePage {
   return { id: makeLinedNotePageId(), content: '' }
+}
+
+export function createAiConversationState(
+  id = DEFAULT_AI_CONVERSATION_ID,
+  now = new Date().toISOString()
+): AiConversationState {
+  return {
+    createdAt: now,
+    geminiContents: [],
+    id,
+    messages: [],
+    pendingActions: [],
+    title: 'Dashboard Agent',
+    toolCalls: [],
+    updatedAt: now,
+  }
 }
 
 export function normalizeLinedNotesDocument(value: unknown): LinedNotesDocument {
@@ -905,6 +959,31 @@ export const useWidgetDataStore = create<WidgetDataState>()(
             widgetType: 'daily-brief',
           })
         }
+      },
+
+      calendarEventsByDate: {},
+      setCalendarEventsForDate: (date, events) => {
+        set((s) => ({
+          calendarEventsByDate: {
+            ...s.calendarEventsByDate,
+            [date]: events,
+          },
+        }))
+      },
+
+      aiConversations: {},
+      activeAiConversationId: DEFAULT_AI_CONVERSATION_ID,
+      saveAiConversation: (conversation) => {
+        set((s) => ({
+          activeAiConversationId: conversation.id,
+          aiConversations: {
+            ...s.aiConversations,
+            [conversation.id]: conversation,
+          },
+        }))
+      },
+      setActiveAiConversation: (conversationId) => {
+        set({ activeAiConversationId: conversationId })
       },
     }),
     { name: WIDGET_DATA_STORAGE_KEY }

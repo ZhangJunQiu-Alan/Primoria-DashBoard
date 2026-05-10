@@ -383,6 +383,8 @@ async function listCalendarEvents(args: Record<string, unknown>): Promise<ToolRe
   const timeMin = getString(args, 'timeMin') ?? fallbackRange.timeMin
   const timeMax = getString(args, 'timeMax') ?? fallbackRange.timeMax
   const result = await fetchCalendarEvents({ timeMax, timeMin })
+  const date = getString(args, 'date') ?? formatLocalDateKey(new Date(timeMin))
+  useWidgetDataStore.getState().setCalendarEventsForDate(date, result.events)
   return { pendingActions: [], response: result }
 }
 
@@ -396,8 +398,10 @@ async function getBriefContext(args: Record<string, unknown>): Promise<ToolResul
     const calendar = await fetchCalendarEvents(range)
     calendarConnected = calendar.connected
     events = calendar.events
+    useWidgetDataStore.getState().setCalendarEventsForDate(date, events)
   } catch {
     calendarConnected = false
+    useWidgetDataStore.getState().setCalendarEventsForDate(date, [])
   }
 
   const briefContext = buildBriefContext(date, events)
