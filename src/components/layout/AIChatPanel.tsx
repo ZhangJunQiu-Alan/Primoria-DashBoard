@@ -1,13 +1,21 @@
 import { useEffect, useRef, useState } from 'react'
-import { AlertCircle, Bot, Check, LoaderCircle, Send, Sparkles, X } from 'lucide-react'
+import { AlertCircle, Bot, CalendarClock, Check, LoaderCircle, Send, Sparkles, X } from 'lucide-react'
 import { applyPendingActions, executeDashboardTool } from '@/lib/ai/dashboardTools'
-import { sendAgentTurn } from '@/lib/ai/api'
+import { generateAssistantReflection, sendAgentTurn } from '@/lib/ai/api'
 import {
   summarizeText,
   trackBehaviorEvent,
   withBehaviorEventContext,
 } from '@/lib/behaviorEvents'
-import type { GeminiContent, PendingAction } from '@/lib/ai/types'
+import { flushBehaviorEventQueue } from '@/lib/behaviorEventSync'
+import { formatLocalDateKey } from '@/lib/date'
+import { syncUserContentItems } from '@/lib/userContentItems'
+import type {
+  AssistantReflectionPeriodType,
+  AssistantReflectionResult,
+  GeminiContent,
+  PendingAction,
+} from '@/lib/ai/types'
 import { useCloudSync } from '@/components/cloud/cloudSyncContext'
 import {
   DEFAULT_AI_CONVERSATION_ID,
@@ -47,8 +55,25 @@ function summarizePendingActions(actions: PendingAction[]) {
   return `我准备执行 ${actions.length} 项变更，请确认后再写入。`
 }
 
+function formatReflectionMessage(result: AssistantReflectionResult) {
+  const title = result.period_type === 'daily' ? '今日反思' : '本周反思'
+  const priorities = result.priority_items.length
+    ? result.priority_items
+        .slice(0, 5)
+        .map((item, index) =>
+          `${index + 1}. ${item.title}｜重要 ${item.importance_score} / 紧急 ${item.urgency_score}\n   ${item.reason}`
+        )
+        .join('\n')
+    : '暂无明显高优先级事项。'
+  const suggestions = result.suggestions.length
+    ? result.suggestions.map((item) => `- ${item}`).join('\n')
+    : '- 暂无额外建议。'
+
+  return `${title}（${result.period_start} 至 ${result.period_end}）\n\n${result.summary}\n\n${result.completion_summary}\n\n优先级：\n${priorities}\n\n建议：\n${suggestions}`
+}
+
 export function AIChatPanel({ open, onClose }: AIChatPanelProps) {
-  const { configured, user } = useCloudSync()
+  const { configured, pushNow, user } = useCloudSync()
   const saveAiConversation = useWidgetDataStore((s) => s.saveAiConversation)
   const storedConversation = useWidgetDataStore((s) => s.aiConversations[DEFAULT_AI_CONVERSATION_ID])
   const initialConversationRef = useRef(
@@ -60,6 +85,7 @@ export function AIChatPanel({ open, onClose }: AIChatPanelProps) {
   )
   const [input, setInput] = useState('')
   const [busy, setBusy] = useState(false)
+  const [reflectionBusy, setReflectionBusy] = useState<AssistantReflectionPeriodType | null>(null)
   const [pendingActions, setPendingActions] = useState<PendingAction[]>(
     initialConversationRef.current.pendingActions
   )
@@ -243,6 +269,78 @@ export function AIChatPanel({ open, onClose }: AIChatPanelProps) {
     }
   }
 
+  async function runReflection(periodType: AssistantReflectionPeriodType) {
+    if (!ready || busy || pendingActions.length > 0 || !user) return
+
+    const date = formatLocalDateKey()
+    setBusy(true)
+    setReflectionBusy(periodType)
+    trackBehaviorEvent({
+      actor: 'user',
+      eventName: 'assistant_reflection.requested',
+      metadata: { date, periodType },
+      objectType: 'assistant_reflection',
+      summary: periodType === 'daily' ? '请求生成今日反思' : '请求生成本周反思',
+      surface: 'ai_chat',
+    })
+
+    try {
+      const eventFlush = await flushBehaviorEventQueue(user.id)
+      if (!eventFlush.ok) {
+        throw new Error(`行为事件同步失败：${eventFlush.error ?? '未知错误'}`)
+      }
+      const synced = await pushNow()
+      if (!synced) throw new Error('同步失败，暂不生成反思。')
+      const contentSynced = await syncUserContentItems(user.id)
+      if (!contentSynced.ok) {
+        throw new Error(`内容索引同步失败：${contentSynced.error ?? '未知错误'}`)
+      }
+
+      const result = await generateAssistantReflection({ date, periodType })
+      const content = formatReflectionMessage(result)
+      contentsRef.current = [
+        ...contentsRef.current,
+        {
+          role: 'user',
+          parts: [{ text: periodType === 'daily' ? '生成今日反思。' : '生成本周反思。' }],
+        },
+        { role: 'model', parts: [{ text: content }] },
+      ]
+      trackBehaviorEvent({
+        actor: 'assistant',
+        eventName: 'assistant_reflection.generated',
+        metadata: {
+          cached: Boolean(result.cached),
+          periodEnd: result.period_end,
+          periodStart: result.period_start,
+          periodType: result.period_type,
+          priorityCount: result.priority_items.length,
+          suggestionCount: result.suggestions.length,
+        },
+        objectId: result.reflection_key,
+        objectType: 'assistant_reflection',
+        summary: periodType === 'daily' ? '生成今日反思' : '生成本周反思',
+        surface: 'ai_chat',
+      })
+      appendMessage({ role: 'assistant', content })
+      await flushBehaviorEventQueue(user.id)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : '反思生成失败'
+      trackBehaviorEvent({
+        actor: 'system',
+        eventName: 'assistant_reflection.error',
+        metadata: { date, message: summarizeText(message, 120), periodType },
+        objectType: 'assistant_reflection',
+        summary: `反思生成失败：${summarizeText(message, 80)}`,
+        surface: 'ai_chat',
+      })
+      appendMessage({ role: 'system', content: message })
+    } finally {
+      setReflectionBusy(null)
+      setBusy(false)
+    }
+  }
+
   function send() {
     const text = input.trim()
     if (!text || busy || !ready || pendingActions.length > 0) return
@@ -375,6 +473,28 @@ export function AIChatPanel({ open, onClose }: AIChatPanelProps) {
           >
             <X size={15} />
           </button>
+        </div>
+
+        <div className="flex flex-shrink-0 gap-2 px-4 py-3" style={{ borderBottom: '1px solid var(--border)' }}>
+          {(['daily', 'weekly'] as const).map((periodType) => {
+            const loading = reflectionBusy === periodType
+            return (
+              <button
+                key={periodType}
+                onClick={() => void runReflection(periodType)}
+                disabled={!ready || busy || pendingActions.length > 0}
+                className="flex flex-1 items-center justify-center gap-1.5 rounded-xl px-3 py-2 text-xs font-semibold disabled:opacity-60"
+                style={{
+                  background: 'var(--bg-muted)',
+                  border: '1px solid var(--border)',
+                  color: 'var(--text-sub)',
+                }}
+              >
+                {loading ? <LoaderCircle size={13} className="animate-spin" /> : <CalendarClock size={13} />}
+                {periodType === 'daily' ? '今日反思' : '本周反思'}
+              </button>
+            )
+          })}
         </div>
 
         <div className="flex-1 overflow-y-auto flex flex-col gap-3 p-4">

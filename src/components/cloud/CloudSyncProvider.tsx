@@ -386,8 +386,8 @@ export function CloudSyncProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const pushNow = useCallback(async () => {
-    if (!user) return
-    await pushLocalSnapshot(user.id)
+    if (!user) return false
+    return pushLocalSnapshot(user.id)
   }, [pushLocalSnapshot, user])
 
   const applyCloudVersion = useCallback(async () => {

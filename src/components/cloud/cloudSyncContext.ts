@@ -12,7 +12,7 @@ export interface CloudSyncContextValue {
   signIn: (email: string, password: string) => Promise<void>
   signUp: (email: string, password: string) => Promise<void>
   signOut: () => Promise<void>
-  pushNow: () => Promise<void>
+  pushNow: () => Promise<boolean>
 }
 
 export const CloudSyncContext = createContext<CloudSyncContextValue | null>(null)

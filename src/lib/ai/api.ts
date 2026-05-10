@@ -1,6 +1,12 @@
 import { supabase, type Session } from '@/lib/supabase'
-import { formatLocalDateKey } from '@/lib/date'
-import type { CalendarEvent, DailyBriefResult, GeminiContent } from '@/lib/ai/types'
+import { addDaysToDateKey, formatLocalDateKey, parseLocalDateKey } from '@/lib/date'
+import type {
+  AssistantReflectionPeriodType,
+  AssistantReflectionResult,
+  CalendarEvent,
+  DailyBriefResult,
+  GeminiContent,
+} from '@/lib/ai/types'
 
 type OAuthSession = Session & {
   provider_token?: string | null
@@ -89,6 +95,35 @@ export async function generateDailyBrief({
     method: 'POST',
     body: JSON.stringify({ context, date }),
   }) as Promise<DailyBriefResult>
+}
+
+function getReflectionRequestRange(periodType: AssistantReflectionPeriodType, date: string) {
+  const start =
+    periodType === 'weekly'
+      ? addDaysToDateKey(date, -((parseLocalDateKey(date).getDay() + 6) % 7))
+      : date
+  const end = periodType === 'weekly' ? addDaysToDateKey(start, 6) : start
+  return {
+    timeMax: parseLocalDateKey(addDaysToDateKey(end, 1)).toISOString(),
+    timeMin: parseLocalDateKey(start).toISOString(),
+  }
+}
+
+export async function generateAssistantReflection({
+  date = formatLocalDateKey(),
+  periodType,
+}: {
+  date?: string
+  periodType: AssistantReflectionPeriodType
+}) {
+  return authedFetch('/api/ai/reflection', {
+    method: 'POST',
+    body: JSON.stringify({
+      date,
+      periodType,
+      ...getReflectionRequestRange(periodType, date),
+    }),
+  }) as Promise<AssistantReflectionResult>
 }
 
 export async function saveCalendarConnectionFromSession(session: Session | null) {
