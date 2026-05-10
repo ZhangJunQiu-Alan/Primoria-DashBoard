@@ -33,6 +33,7 @@ import { flushBehaviorEventQueue } from '@/lib/behaviorEventSync'
 import { formatLocalDateKey } from '@/lib/date'
 import { syncUserContentItems } from '@/lib/userContentItems'
 import type {
+  AssistantAgentTraceItem,
   AssistantMemory,
   AssistantMemoryType,
   AssistantRagSource,
@@ -80,6 +81,17 @@ const RAG_SOURCE_LABELS = {
   content_item: '内容',
 } satisfies Record<AssistantRagSource['source_type'], string>
 
+const AGENT_ROLE_LABELS = {
+  briefing_agent: 'Briefing',
+  dashboard_operator: 'Dashboard',
+  memory_agent: 'Memory',
+  memory_curator: 'Curator',
+  orchestrator: 'Orchestrator',
+  policy_guard: 'Guard',
+  rag_retriever: 'RAG',
+  reflection_agent: 'Reflection',
+} satisfies Record<AssistantAgentTraceItem['role'], string>
+
 function makeMessageId() {
   return `msg-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
 }
@@ -119,6 +131,11 @@ function formatRagSources(sources: AssistantRagSource[] | undefined) {
       `- ${RAG_SOURCE_LABELS[source.source_type]}｜${source.title}｜${Math.round(source.similarity * 100)}%`
     )
     .join('\n')}`
+}
+
+function formatAgentTrace(trace: AssistantAgentTraceItem[] | undefined) {
+  const visible = (trace ?? []).filter((item) => item.role !== 'policy_guard').slice(0, 5)
+  return visible.map((item) => AGENT_ROLE_LABELS[item.role]).join(' → ')
 }
 
 function formatMemoryDate(value: string | null | undefined) {
@@ -211,6 +228,23 @@ function formatReflectionMessage(result: AssistantReflectionResult) {
   const ragSection = formatRagSources(result.rag_sources)
 
   return `${title}（${result.period_start} 至 ${result.period_end}）\n\n${result.summary}\n\n${result.completion_summary}\n\n优先级：\n${priorities}\n\n建议：\n${suggestions}${memorySection}${ragSection}`
+}
+
+function AgentTraceLine({ trace }: { trace?: AssistantAgentTraceItem[] }) {
+  const label = formatAgentTrace(trace)
+  if (!label) return null
+  return (
+    <div
+      className="mt-1 max-w-[86%] rounded-xl px-2 py-1 text-[10px]"
+      style={{
+        background: 'transparent',
+        color: 'var(--text-muted)',
+      }}
+      title={(trace ?? []).map((item) => item.summary).join('\n')}
+    >
+      {label}
+    </div>
+  )
 }
 
 export function AIChatPanel({ open, onClose }: AIChatPanelProps) {
@@ -417,6 +451,7 @@ export function AIChatPanel({ open, onClose }: AIChatPanelProps) {
             metadata: {
               length: response.text.length,
               ragSourceCount: response.rag_sources?.length ?? 0,
+              agentTrace: response.agent_trace?.map((item) => item.role) ?? [],
               replySummary: summarizeText(response.text || '我没有找到需要执行的操作。', 100),
             },
             objectType: 'ai_message',
@@ -425,6 +460,7 @@ export function AIChatPanel({ open, onClose }: AIChatPanelProps) {
           })
           appendMessage({
             role: 'assistant',
+            agentTrace: response.agent_trace,
             content: `${response.text || '我没有找到需要执行的操作。'}${formatRagSources(response.rag_sources)}`,
           })
           return
@@ -475,7 +511,11 @@ export function AIChatPanel({ open, onClose }: AIChatPanelProps) {
             summary: `AI 准备 ${actions.length} 项待确认变更`,
             surface: 'ai_chat',
           })
-          appendMessage({ role: 'assistant', content: summarizePendingActions(actions) })
+          appendMessage({
+            role: 'assistant',
+            agentTrace: response.agent_trace,
+            content: summarizePendingActions(actions),
+          })
           return
         }
       }
@@ -550,6 +590,7 @@ export function AIChatPanel({ open, onClose }: AIChatPanelProps) {
           periodType: result.period_type,
           priorityCount: result.priority_items.length,
           ragSourceCount: result.rag_sources?.length ?? 0,
+          agentTrace: result.agent_trace?.map((item) => item.role) ?? [],
           suggestionCount: result.suggestions.length,
         },
         objectId: result.reflection_key,
@@ -557,7 +598,7 @@ export function AIChatPanel({ open, onClose }: AIChatPanelProps) {
         summary: periodType === 'daily' ? '生成今日反思' : '生成本周反思',
         surface: 'ai_chat',
       })
-      appendMessage({ role: 'assistant', content })
+      appendMessage({ role: 'assistant', agentTrace: result.agent_trace, content })
       if (result.memory_updates) void loadMemories()
       await flushBehaviorEventQueue(user.id)
     } catch (error) {
@@ -768,7 +809,7 @@ export function AIChatPanel({ open, onClose }: AIChatPanelProps) {
               )}
 
               {messages.map((msg) => (
-                <div key={msg.id} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                <div key={msg.id} className={`flex flex-col ${msg.role === 'user' ? 'items-end' : 'items-start'}`}>
                   <div
                     className={`max-w-[86%] rounded-2xl px-3 py-2 text-sm leading-relaxed ${
                       msg.role === 'user' ? 'whitespace-pre-wrap' : ''
@@ -796,6 +837,7 @@ export function AIChatPanel({ open, onClose }: AIChatPanelProps) {
                     )}
                     {renderMessageContent(msg)}
                   </div>
+                  {msg.role === 'assistant' && <AgentTraceLine trace={msg.agentTrace} />}
                 </div>
               ))}
 

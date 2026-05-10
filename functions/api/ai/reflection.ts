@@ -6,15 +6,21 @@ import {
   type PagesContext,
 } from '../../_shared/http'
 import {
-  generateGeminiContent,
   getGeminiModel,
 } from '../../_shared/gemini'
 import { extractAssistantMemories } from '../../_shared/memory'
 import {
   indexAssistantRag,
-  retrieveAssistantRag,
   type AssistantRagSource,
 } from '../../_shared/rag'
+import {
+  buildAgentSystemInstruction,
+  createAgentTraceItem,
+  policyGuardTrace,
+  runGeminiAgent,
+  runRagRetriever,
+  type AssistantAgentTraceItem,
+} from '../../_shared/agents'
 import {
   buildReflectionPrompt,
   buildRuleReflection,
@@ -58,11 +64,34 @@ async function safeExtractMemories({
   env: PagesContext['env']
   reflection: AssistantReflectionResult | StoredReflectionRow
   userId: string
-}) {
+}): Promise<{
+  summary: { created: number; extracted: boolean; skipped: number; updated: number }
+  trace: AssistantAgentTraceItem
+}> {
+  const startedAt = Date.now()
   try {
-    return await extractAssistantMemories({ env, reflection, userId })
+    const summary = await extractAssistantMemories({ env, reflection, userId })
+    return {
+      summary,
+      trace: createAgentTraceItem({
+        duration_ms: Math.max(0, Date.now() - startedAt),
+        role: 'memory_curator',
+        status: summary.extracted ? 'success' : 'skipped',
+        summary: summary.extracted
+          ? `长期记忆提炼完成：新增 ${summary.created}，更新 ${summary.updated}。`
+          : '长期记忆已是最新或没有可提炼内容。',
+      }),
+    }
   } catch {
-    return { created: 0, extracted: false, skipped: 1, updated: 0 }
+    return {
+      summary: { created: 0, extracted: false, skipped: 1, updated: 0 },
+      trace: createAgentTraceItem({
+        duration_ms: Math.max(0, Date.now() - startedAt),
+        role: 'memory_curator',
+        status: 'fallback',
+        summary: '长期记忆提炼失败，反思结果仍返回。',
+      }),
+    }
   }
 }
 
@@ -76,14 +105,25 @@ async function safeRetrieveReflectionRag({
   userId: string
 }) {
   try {
-    return await retrieveAssistantRag({
+    return await runRagRetriever({
       env,
       query,
       sourceTypes: ['assistant_memory', 'assistant_reflection'],
       userId,
     })
   } catch {
-    return { ragContext: '', ragSources: [] as AssistantRagSource[] }
+    return {
+      agent_trace: [
+        createAgentTraceItem({
+          role: 'rag_retriever',
+          sources_count: 0,
+          status: 'fallback',
+          summary: '反思 RAG 检索失败，继续生成反思。',
+        }),
+      ],
+      ragContext: '',
+      ragSources: [] as AssistantRagSource[],
+    }
   }
 }
 
@@ -181,8 +221,18 @@ export async function onRequestPost({ env, request }: PagesContext) {
       await safeIndexReflectionMemory({ env, userId: user.id })
       return jsonResponse({
         ...cached,
+        agent_trace: [
+          ...rag.agent_trace,
+          createAgentTraceItem({
+            role: 'reflection_agent',
+            status: 'skipped',
+            summary: '反思缓存命中，跳过重新生成。',
+          }),
+          memoryUpdates.trace,
+          policyGuardTrace({ allowedTools: false, role: 'reflection_agent' }),
+        ],
         cached: true,
-        memory_updates: memoryUpdates,
+        memory_updates: memoryUpdates.summary,
         rag_sources: rag.ragSources,
       })
     }
@@ -192,7 +242,7 @@ export async function onRequestPost({ env, request }: PagesContext) {
 
     try {
       const reflectionPrompt = buildReflectionPrompt(sourceContext, ruleResult)
-      const generated = await generateGeminiContent({
+      const generated = await runGeminiAgent({
         contents: [
           {
             role: 'user',
@@ -200,9 +250,13 @@ export async function onRequestPost({ env, request }: PagesContext) {
           },
         ],
         env,
-        systemInstruction: `${REFLECTION_SYSTEM_PROMPT}\n如果提供了 rag_context，只把它作为反思辅助背景，不要虚构未提供的事实。`,
+        role: 'reflection_agent',
+        systemInstruction: buildAgentSystemInstruction({
+          base: `${REFLECTION_SYSTEM_PROMPT}\n如果提供了 rag_context，只把它作为反思辅助背景，不要虚构未提供的事实。`,
+          role: 'reflection_agent',
+        }),
       })
-      result = mergeLlmReflection(generated.text, ruleResult, model)
+      result = mergeLlmReflection(generated.result.text, ruleResult, model)
     } catch {
       result = {
         ...ruleResult,
@@ -214,7 +268,21 @@ export async function onRequestPost({ env, request }: PagesContext) {
     await upsertReflection({ env, result, userId: user.id })
     const memoryUpdates = await safeExtractMemories({ env, reflection: result, userId: user.id })
     await safeIndexReflectionMemory({ env, userId: user.id })
-    return jsonResponse({ ...result, memory_updates: memoryUpdates, rag_sources: rag.ragSources })
+    return jsonResponse({
+      ...result,
+      agent_trace: [
+        ...rag.agent_trace,
+        createAgentTraceItem({
+          role: 'reflection_agent',
+          status: result.model ? 'success' : 'fallback',
+          summary: result.model ? 'Reflection Agent 已生成反思。' : 'Reflection Agent 使用规则 fallback 生成反思。',
+        }),
+        memoryUpdates.trace,
+        policyGuardTrace({ allowedTools: false, role: 'reflection_agent' }),
+      ],
+      memory_updates: memoryUpdates.summary,
+      rag_sources: rag.ragSources,
+    })
   } catch (error) {
     return errorResponse(error)
   }

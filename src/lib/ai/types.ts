@@ -30,12 +30,33 @@ export interface CalendarEvent {
 }
 
 export interface DailyBriefResult {
+  agent_trace?: AssistantAgentTraceItem[]
   rag_sources?: AssistantRagSource[]
   summary: string
   recommendation: string
 }
 
 export type AssistantReflectionPeriodType = 'daily' | 'weekly'
+
+export type AssistantAgentRole =
+  | 'orchestrator'
+  | 'dashboard_operator'
+  | 'memory_agent'
+  | 'rag_retriever'
+  | 'reflection_agent'
+  | 'briefing_agent'
+  | 'memory_curator'
+  | 'policy_guard'
+
+export type AssistantAgentTraceStatus = 'success' | 'fallback' | 'skipped' | 'error'
+
+export interface AssistantAgentTraceItem {
+  duration_ms?: number
+  role: AssistantAgentRole
+  sources_count?: number
+  status: AssistantAgentTraceStatus
+  summary: string
+}
 
 export type AssistantMemoryType =
   | 'user_preference'
@@ -119,6 +140,7 @@ export interface AssistantEvidenceItem {
 }
 
 export interface AssistantReflectionResult {
+  agent_trace?: AssistantAgentTraceItem[]
   cached?: boolean
   completion_summary: string
   evidence: AssistantEvidenceItem[]

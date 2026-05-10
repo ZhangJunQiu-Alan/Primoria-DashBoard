@@ -3,7 +3,7 @@ import { CalendarDays, LoaderCircle, RefreshCw, Sparkles } from 'lucide-react'
 import { toast } from 'sonner'
 import { connectGoogleCalendar, fetchCalendarEvents, fetchCalendarStatus, generateDailyBrief } from '@/lib/ai/api'
 import { buildBriefContext, getLocalDayIsoRange } from '@/lib/ai/briefContext'
-import type { AssistantRagSource, CalendarEvent } from '@/lib/ai/types'
+import type { AssistantAgentTraceItem, AssistantRagSource, CalendarEvent } from '@/lib/ai/types'
 import { summarizeText, trackBehaviorEvent } from '@/lib/behaviorEvents'
 import { useCloudSync } from '@/components/cloud/cloudSyncContext'
 import { useCurrentDayKey } from '@/hooks/useCurrentDayKey'
@@ -21,6 +21,22 @@ const RAG_SOURCE_LABELS = {
 
 function formatRagScore(value: number) {
   return `${Math.round(Math.max(0, Math.min(1, value)) * 100)}%`
+}
+
+const AGENT_ROLE_LABELS = {
+  briefing_agent: 'Briefing',
+  dashboard_operator: 'Dashboard',
+  memory_agent: 'Memory',
+  memory_curator: 'Curator',
+  orchestrator: 'Orchestrator',
+  policy_guard: 'Guard',
+  rag_retriever: 'RAG',
+  reflection_agent: 'Reflection',
+} satisfies Record<AssistantAgentTraceItem['role'], string>
+
+function formatAgentTrace(trace: AssistantAgentTraceItem[] | undefined) {
+  const visible = (trace ?? []).filter((item) => item.role !== 'policy_guard').slice(0, 4)
+  return visible.map((item) => AGENT_ROLE_LABELS[item.role]).join(' → ')
 }
 
 export function DailyBriefWidget({ widgetId: _widgetId }: DailyBriefWidgetProps) {
@@ -95,6 +111,7 @@ export function DailyBriefWidget({ widgetId: _widgetId }: DailyBriefWidgetProps)
         calendarConnected: connected,
         date: today,
         generatedAt: new Date().toISOString(),
+        agentTrace: result.agent_trace ?? [],
         ragSources: result.rag_sources ?? [],
         recommendation: result.recommendation,
         sourceFingerprint,
@@ -228,6 +245,11 @@ export function DailyBriefWidget({ widgetId: _widgetId }: DailyBriefWidgetProps)
                     {RAG_SOURCE_LABELS[source.source_type]} · {source.title} · {formatRagScore(source.similarity)}
                   </div>
                 ))}
+              </div>
+            )}
+            {formatAgentTrace(brief.agentTrace) && (
+              <div style={{ color: 'var(--text-muted)', fontSize: '10px', lineHeight: 1.4 }}>
+                {formatAgentTrace(brief.agentTrace)}
               </div>
             )}
           </>

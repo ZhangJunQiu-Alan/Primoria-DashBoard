@@ -2,7 +2,13 @@ import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { getDomainFromUrl, summarizeText, trackBehaviorEvent } from '@/lib/behaviorEvents'
 import { formatLocalDateKey } from '@/lib/date'
-import type { AssistantRagSource, CalendarEvent, GeminiContent, PendingAction } from '@/lib/ai/types'
+import type {
+  AssistantAgentTraceItem,
+  AssistantRagSource,
+  CalendarEvent,
+  GeminiContent,
+  PendingAction,
+} from '@/lib/ai/types'
 
 export interface QuickLink {
   id: string
@@ -54,6 +60,7 @@ export interface DailyBriefData {
   recommendation: string
   generatedAt: string
   calendarConnected: boolean
+  agentTrace?: AssistantAgentTraceItem[]
   ragSources?: AssistantRagSource[]
   sourceFingerprint: string
 }
@@ -63,6 +70,7 @@ export interface AiConversationMessage {
   role: 'user' | 'assistant' | 'system'
   content: string
   createdAt: string
+  agentTrace?: AssistantAgentTraceItem[]
 }
 
 export interface AiToolCallRecord {

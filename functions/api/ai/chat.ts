@@ -8,28 +8,28 @@ import {
 import {
   DASHBOARD_AGENT_SYSTEM_PROMPT,
   DASHBOARD_TOOL_DECLARATIONS,
-  generateGeminiContent,
   type GeminiContent,
 } from '../../_shared/gemini'
-import { retrieveAssistantRag } from '../../_shared/rag'
+import {
+  buildAgentSystemInstruction,
+  extractLatestUserText,
+  getAgentPromptForRoute,
+  policyGuardTrace,
+  routeAssistantRequest,
+  runGeminiAgent,
+  runRagRetriever,
+  type AssistantAgentRole,
+} from '../../_shared/agents'
 
 interface ChatBody {
   contents: GeminiContent[]
   clientDate?: string
 }
 
-function extractLatestUserText(contents: GeminiContent[]) {
-  for (let index = contents.length - 1; index >= 0; index -= 1) {
-    const content = contents[index]
-    if (content.role !== 'user') continue
-    const text = content.parts
-      .map((part) => part.text)
-      .filter((part): part is string => typeof part === 'string' && part.trim().length > 0)
-      .join('\n')
-      .trim()
-    if (text) return text
-  }
-  return ''
+function getSpecialistRole(intent: 'dashboard_operation' | 'memory_question' | 'general_answer'): AssistantAgentRole {
+  if (intent === 'memory_question') return 'memory_agent'
+  if (intent === 'general_answer') return 'orchestrator'
+  return 'dashboard_operator'
 }
 
 export async function onRequestPost({ env, request }: PagesContext) {
@@ -40,26 +40,45 @@ export async function onRequestPost({ env, request }: PagesContext) {
     const today = typeof body.clientDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(body.clientDate)
       ? body.clientDate
       : new Date().toISOString().slice(0, 10)
-    const rag = await retrieveAssistantRag({
-      env,
-      query: extractLatestUserText(body.contents),
-      userId: user.id,
-    })
-
-    const systemInstruction = [
-      DASHBOARD_AGENT_SYSTEM_PROMPT,
-      `用户本地今天是 ${today}。处理"今天/明天/本周"等时间表达时以此为准。`,
-      rag.ragContext ? `可参考的 RAG 上下文：\n${rag.ragContext}` : '',
-    ].filter(Boolean).join('\n\n')
-
-    const result = await generateGeminiContent({
+    const latestUserText = extractLatestUserText(body.contents)
+    const routed = await routeAssistantRequest({
       contents: body.contents,
       env,
-      systemInstruction,
-      tools: [{ functionDeclarations: DASHBOARD_TOOL_DECLARATIONS }],
+      latestUserText,
     })
+    const rag = await runRagRetriever({
+      env,
+      query: latestUserText,
+      userId: user.id,
+    })
+    const specialistRole = getSpecialistRole(routed.decision.intent)
+    const toolsAllowed = specialistRole === 'dashboard_operator'
+    const basePrompt = getAgentPromptForRoute(routed.decision.intent) ?? DASHBOARD_AGENT_SYSTEM_PROMPT
+    const systemInstruction = buildAgentSystemInstruction({
+      base: basePrompt,
+      ragContext: rag.ragContext,
+      role: specialistRole,
+      today,
+    })
+    const specialist = await runGeminiAgent({
+      contents: body.contents,
+      env,
+      role: specialistRole,
+      systemInstruction,
+      ...(toolsAllowed ? { tools: [{ functionDeclarations: DASHBOARD_TOOL_DECLARATIONS }] } : {}),
+    })
+    const agentTrace = [
+      routed.trace,
+      ...rag.agent_trace,
+      policyGuardTrace({ allowedTools: toolsAllowed, role: specialistRole }),
+      ...specialist.agent_trace,
+    ]
 
-    return jsonResponse({ ...result, rag_sources: rag.ragSources })
+    return jsonResponse({
+      ...specialist.result,
+      agent_trace: agentTrace,
+      rag_sources: rag.ragSources,
+    })
   } catch (error) {
     return errorResponse(error)
   }

@@ -7,9 +7,13 @@ import {
 } from '../../_shared/http'
 import {
   DAILY_BRIEF_SYSTEM_PROMPT,
-  generateGeminiContent,
 } from '../../_shared/gemini'
-import { retrieveAssistantRag } from '../../_shared/rag'
+import {
+  buildAgentSystemInstruction,
+  policyGuardTrace,
+  runGeminiAgent,
+  runRagRetriever,
+} from '../../_shared/agents'
 
 interface BriefBody {
   context: unknown
@@ -35,7 +39,7 @@ export async function onRequestPost({ env, request }: PagesContext) {
   try {
     const user = await requireUser(request, env)
     const body = await readJsonBody<BriefBody>(request)
-    const rag = await retrieveAssistantRag({
+    const rag = await runRagRetriever({
       env,
       query: JSON.stringify({
         context: body.context,
@@ -45,7 +49,7 @@ export async function onRequestPost({ env, request }: PagesContext) {
       userId: user.id,
     })
 
-    const result = await generateGeminiContent({
+    const briefing = await runGeminiAgent({
       contents: [
         {
           role: 'user',
@@ -61,10 +65,23 @@ export async function onRequestPost({ env, request }: PagesContext) {
         },
       ],
       env,
-      systemInstruction: `${DAILY_BRIEF_SYSTEM_PROMPT}\n\n如果提供了 rag_context，只把它作为辅助背景，不要把来源列表写进 JSON 字段。`,
+      role: 'briefing_agent',
+      systemInstruction: buildAgentSystemInstruction({
+        base: `${DAILY_BRIEF_SYSTEM_PROMPT}\n\n如果提供了 rag_context，只把它作为辅助背景，不要把来源列表写进 JSON 字段。`,
+        ragContext: '',
+        role: 'briefing_agent',
+      }),
     })
 
-    return jsonResponse({ ...parseBriefText(result.text), rag_sources: rag.ragSources })
+    return jsonResponse({
+      ...parseBriefText(briefing.result.text),
+      agent_trace: [
+        ...rag.agent_trace,
+        policyGuardTrace({ allowedTools: false, role: 'briefing_agent' }),
+        ...briefing.agent_trace,
+      ],
+      rag_sources: rag.ragSources,
+    })
   } catch (error) {
     return errorResponse(error)
   }

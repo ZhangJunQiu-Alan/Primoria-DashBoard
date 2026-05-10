@@ -5,6 +5,7 @@ import type {
   AssistantReflectionResult,
   AssistantMemory,
   AssistantMemoryType,
+  AssistantAgentTraceItem,
   AssistantRagIndexResult,
   AssistantRagSource,
   AssistantRagSourceType,
@@ -64,6 +65,7 @@ export async function sendAgentTurn({ messages }: { messages: GeminiContent[]; t
     method: 'POST',
     body: JSON.stringify({ contents: messages, clientDate: formatLocalDateKey() }),
   }) as Promise<{
+    agent_trace?: AssistantAgentTraceItem[]
     modelContent: GeminiContent
     text: string
     functionCalls: Array<{ id?: string; name: string; args?: Record<string, unknown> }>
