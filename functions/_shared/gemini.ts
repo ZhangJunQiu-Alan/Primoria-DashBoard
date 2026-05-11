@@ -30,6 +30,22 @@ interface GeminiResponse {
   usageMetadata?: unknown
 }
 
+export interface GeminiGatewayAttempt {
+  attempt: number
+  duration_ms: number
+  error?: string
+  model: string
+  status: 'success' | 'retryable_error' | 'fatal_error'
+  status_code?: number
+}
+
+export interface GeminiGatewayMetadata {
+  attempts: GeminiGatewayAttempt[]
+  fallback_used: boolean
+  model: string
+  provider: 'gemini'
+}
+
 interface GeminiEmbeddingResponse {
   embedding?: {
     values?: number[]
@@ -273,12 +289,246 @@ export const DASHBOARD_TOOL_DECLARATIONS = [
   },
 ]
 
-export function getGeminiModel(env: FunctionEnv) {
-  return env.GEMINI_MODEL?.trim() || 'gemini-3.1-pro-preview'
-}
-
+export const DEFAULT_GEMINI_MODEL = 'gemini-2.5-flash'
 export const GEMINI_EMBEDDING_MODEL = 'gemini-embedding-001'
 export const GEMINI_EMBEDDING_DIMENSIONS = 768
+const DEFAULT_GEMINI_REQUEST_TIMEOUT_MS = 20_000
+const DEFAULT_GEMINI_RETRY_DELAY_MS = 350
+const DEFAULT_GEMINI_MAX_RETRIES = 1
+const DEFAULT_GEMINI_MAX_RETRIES_WITH_FALLBACK = 0
+const RETRYABLE_GEMINI_STATUSES = new Set([408, 429, 500, 502, 503, 504])
+
+interface GeminiGatewayRequestResult {
+  data?: GeminiResponse
+  duration_ms: number
+  message?: string
+  ok: boolean
+  retryable?: boolean
+  status?: number
+}
+
+function normalizeGeminiModel(model?: string) {
+  const trimmed = model?.trim()
+  if (!trimmed) return DEFAULT_GEMINI_MODEL
+  return normalizeConfiguredGeminiModel(trimmed)
+}
+
+function normalizeConfiguredGeminiModel(model: string) {
+  const trimmed = model.trim()
+  if (trimmed.startsWith('gemini-3.1')) return DEFAULT_GEMINI_MODEL
+  return trimmed
+}
+
+export function getGeminiModel(env: FunctionEnv) {
+  return normalizeGeminiModel(env.GEMINI_MODEL)
+}
+
+export function getGeminiFallbackModels(env: FunctionEnv, primaryModel = getGeminiModel(env)) {
+  const configured = env.GEMINI_FALLBACK_MODELS?.split(',')
+    .map((model) => model.trim())
+    .filter(Boolean) ?? []
+  const normalized = configured.map((model) => normalizeConfiguredGeminiModel(model))
+  return [...new Set(normalized)].filter((model) => model !== primaryModel)
+}
+
+function parseBoundedInteger({
+  fallback,
+  max,
+  min,
+  value,
+}: {
+  fallback: number
+  max: number
+  min: number
+  value?: string
+}) {
+  const parsed = Number.parseInt(value ?? '', 10)
+  if (!Number.isFinite(parsed)) return fallback
+  return Math.min(max, Math.max(min, parsed))
+}
+
+function gatewayTimeoutMs(env: FunctionEnv) {
+  return parseBoundedInteger({
+    fallback: DEFAULT_GEMINI_REQUEST_TIMEOUT_MS,
+    max: 60_000,
+    min: 1_000,
+    value: env.GEMINI_REQUEST_TIMEOUT_MS,
+  })
+}
+
+function gatewayRetryDelayMs(env: FunctionEnv) {
+  return parseBoundedInteger({
+    fallback: DEFAULT_GEMINI_RETRY_DELAY_MS,
+    max: 5_000,
+    min: 0,
+    value: env.GEMINI_RETRY_DELAY_MS,
+  })
+}
+
+function gatewayMaxRetries(env: FunctionEnv, hasFallback: boolean) {
+  return parseBoundedInteger({
+    fallback: hasFallback ? DEFAULT_GEMINI_MAX_RETRIES_WITH_FALLBACK : DEFAULT_GEMINI_MAX_RETRIES,
+    max: 3,
+    min: 0,
+    value: env.GEMINI_MAX_RETRIES,
+  })
+}
+
+function delay(ms: number) {
+  return ms > 0 ? new Promise((resolve) => setTimeout(resolve, ms)) : Promise.resolve()
+}
+
+function extractGeminiErrorMessage(data: unknown, fallback: string) {
+  if (data && typeof data === 'object' && 'error' in data) {
+    const error = (data as { error?: { message?: unknown } }).error
+    if (typeof error?.message === 'string' && error.message.trim()) return error.message
+  }
+  return fallback
+}
+
+function networkErrorMessage(error: unknown) {
+  if (error instanceof Error && error.name === 'TimeoutError') return 'Gemini request timed out'
+  if (error instanceof Error && error.message.trim()) return error.message
+  return 'Gemini request failed'
+}
+
+function buildGatewayFailureMessage(lastResult: GeminiGatewayRequestResult | null, attempts: GeminiGatewayAttempt[]) {
+  const message = lastResult?.message || 'Gemini request failed'
+  const models = [...new Set(attempts.map((attempt) => attempt.model))]
+  return models.length > 1 ? `${message}（已尝试 ${models.join(', ')}）` : message
+}
+
+async function requestGeminiContent({
+  apiKey,
+  body,
+  model,
+  timeoutMs,
+}: {
+  apiKey: string
+  body: Record<string, unknown>
+  model: string
+  timeoutMs: number
+}): Promise<GeminiGatewayRequestResult> {
+  const startedAt = Date.now()
+  try {
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
+      {
+        body: JSON.stringify(body),
+        headers: {
+          'content-type': 'application/json',
+          'x-goog-api-key': apiKey,
+        },
+        method: 'POST',
+        signal: AbortSignal.timeout(timeoutMs),
+      }
+    )
+    const rawText = await response.text()
+    let data: unknown = null
+    if (rawText) {
+      try {
+        data = JSON.parse(rawText)
+      } catch {
+        data = null
+      }
+    }
+
+    const durationMs = Date.now() - startedAt
+    if (!response.ok) {
+      return {
+        duration_ms: durationMs,
+        message: extractGeminiErrorMessage(data, 'Gemini request failed'),
+        ok: false,
+        retryable: RETRYABLE_GEMINI_STATUSES.has(response.status),
+        status: response.status,
+      }
+    }
+    if (!data) {
+      return {
+        duration_ms: durationMs,
+        message: 'Gemini response was not JSON',
+        ok: false,
+        retryable: true,
+        status: 502,
+      }
+    }
+
+    return {
+      data: data as GeminiResponse,
+      duration_ms: durationMs,
+      ok: true,
+    }
+  } catch (error) {
+    return {
+      duration_ms: Date.now() - startedAt,
+      message: networkErrorMessage(error),
+      ok: false,
+      retryable: true,
+      status: 503,
+    }
+  }
+}
+
+async function callGeminiContentGateway({
+  body,
+  env,
+}: {
+  body: Record<string, unknown>
+  env: FunctionEnv
+}) {
+  const apiKey = env.GEMINI_API_KEY
+  if (!apiKey) throw new HttpError(500, 'GEMINI_API_KEY is not configured')
+
+  const primaryModel = getGeminiModel(env)
+  const fallbackModels = getGeminiFallbackModels(env, primaryModel)
+  const models = [primaryModel, ...fallbackModels]
+  const maxRetries = gatewayMaxRetries(env, fallbackModels.length > 0)
+  const retryDelayMs = gatewayRetryDelayMs(env)
+  const timeoutMs = gatewayTimeoutMs(env)
+  const attempts: GeminiGatewayAttempt[] = []
+  let lastResult: GeminiGatewayRequestResult | null = null
+
+  for (const model of models) {
+    for (let attempt = 0; attempt <= maxRetries; attempt += 1) {
+      const result = await requestGeminiContent({
+        apiKey,
+        body,
+        model,
+        timeoutMs,
+      })
+      attempts.push({
+        attempt: attempt + 1,
+        duration_ms: result.duration_ms,
+        error: result.message,
+        model,
+        status: result.ok ? 'success' : result.retryable ? 'retryable_error' : 'fatal_error',
+        status_code: result.status,
+      })
+
+      if (result.ok && result.data) {
+        return {
+          data: result.data,
+          gateway: {
+            attempts,
+            fallback_used: model !== primaryModel,
+            model,
+            provider: 'gemini' as const,
+          },
+          model,
+        }
+      }
+
+      lastResult = result
+      if (!result.retryable) {
+        throw new HttpError(result.status ?? 500, buildGatewayFailureMessage(result, attempts))
+      }
+
+      if (attempt < maxRetries) await delay(retryDelayMs)
+    }
+  }
+
+  throw new HttpError(lastResult?.status ?? 503, buildGatewayFailureMessage(lastResult, attempts))
+}
 
 function normalizeEmbedding(values: number[]) {
   const norm = Math.hypot(...values)
@@ -345,9 +595,6 @@ export async function generateGeminiContent({
   systemInstruction: string
   tools?: unknown[]
 }) {
-  if (!env.GEMINI_API_KEY) throw new HttpError(500, 'GEMINI_API_KEY is not configured')
-
-  const model = getGeminiModel(env)
   const body: Record<string, unknown> = {
     contents,
     generationConfig: {
@@ -368,25 +615,12 @@ export async function generateGeminiContent({
     }
   }
 
-  const response = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
-    {
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        'x-goog-api-key': env.GEMINI_API_KEY,
-      },
-      body: JSON.stringify(body),
-    }
-  )
-
-  const data = await response.json() as GeminiResponse
-  if (!response.ok) {
-    throw new HttpError(response.status, data.error?.message || 'Gemini request failed')
-  }
+  const { data, gateway, model } = await callGeminiContentGateway({ body, env })
 
   const modelContent = data.candidates?.[0]?.content ?? { role: 'model' as const, parts: [] }
   return {
+    gateway,
+    model,
     modelContent,
     text: modelContent.parts.flatMap((part) => part.text ? [part.text] : []).join('\n').trim(),
     functionCalls: modelContent.parts.flatMap((part) => part.functionCall ? [part.functionCall] : []),

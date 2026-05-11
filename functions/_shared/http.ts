@@ -1,6 +1,10 @@
 export interface FunctionEnv {
   GEMINI_API_KEY?: string
+  GEMINI_FALLBACK_MODELS?: string
+  GEMINI_MAX_RETRIES?: string
   GEMINI_MODEL?: string
+  GEMINI_REQUEST_TIMEOUT_MS?: string
+  GEMINI_RETRY_DELAY_MS?: string
   GOOGLE_OAUTH_CLIENT_ID?: string
   GOOGLE_OAUTH_CLIENT_SECRET?: string
   SUPABASE_ANON_KEY?: string

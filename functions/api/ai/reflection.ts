@@ -5,9 +5,6 @@ import {
   requireUser,
   type PagesContext,
 } from '../../_shared/http'
-import {
-  getGeminiModel,
-} from '../../_shared/gemini'
 import { extractAssistantMemories } from '../../_shared/memory'
 import {
   indexAssistantRag,
@@ -237,7 +234,6 @@ export async function onRequestPost({ env, request }: PagesContext) {
       })
     }
 
-    const model = getGeminiModel(env)
     let result = ruleResult
 
     try {
@@ -256,7 +252,7 @@ export async function onRequestPost({ env, request }: PagesContext) {
           role: 'reflection_agent',
         }),
       })
-      result = mergeLlmReflection(generated.result.text, ruleResult, model)
+      result = mergeLlmReflection(generated.result.text, ruleResult, generated.result.model)
     } catch {
       result = {
         ...ruleResult,
