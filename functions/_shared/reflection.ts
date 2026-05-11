@@ -237,8 +237,14 @@ export async function readReflectionSourceRows({
     fetch(`${supabaseUrl}/rest/v1/user_content_items?${contentParams.toString()}`, { headers }),
   ])
 
-  if (!eventsResponse.ok) throw new HttpError(500, 'Unable to read behavior events')
-  if (!contentResponse.ok) throw new HttpError(500, 'Unable to read content items')
+  if (!eventsResponse.ok) {
+    const detail = await eventsResponse.text()
+    throw new HttpError(500, `Unable to read behavior events (${eventsResponse.status}): ${detail.slice(0, 200)}`)
+  }
+  if (!contentResponse.ok) {
+    const detail = await contentResponse.text()
+    throw new HttpError(500, `Unable to read content items (${contentResponse.status}): ${detail.slice(0, 200)}`)
+  }
 
   return {
     contentItems: await contentResponse.json() as ContentItemRow[],
@@ -265,7 +271,10 @@ export async function readCachedReflection({
     headers: restHeaders(env),
   })
 
-  if (!response.ok) throw new HttpError(500, 'Unable to read assistant reflection')
+  if (!response.ok) {
+    const detail = await response.text()
+    throw new HttpError(500, `Unable to read assistant reflection (${response.status}): ${detail.slice(0, 200)}`)
+  }
   const rows = await response.json() as StoredReflectionRow[]
   return rows[0] ?? null
 }
@@ -308,7 +317,10 @@ export async function upsertReflection({
     }
   )
 
-  if (!response.ok) throw new HttpError(500, 'Unable to save assistant reflection')
+  if (!response.ok) {
+    const detail = await response.text()
+    throw new HttpError(500, `Unable to save assistant reflection (${response.status}): ${detail.slice(0, 300)}`)
+  }
 }
 
 function clamp(value: number, min: number, max: number) {
