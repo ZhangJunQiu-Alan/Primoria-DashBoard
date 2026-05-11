@@ -10,7 +10,15 @@ import type {
   GeminiFunctionCall,
   PendingAction,
 } from '@/lib/ai/types'
-import { formatLocalDateKey } from '@/lib/date'
+import { addDaysToDateKey, formatLocalDateKey, parseLocalDateKey } from '@/lib/date'
+import {
+  getThisWeekSessionCount,
+  getThisWeekTotalSec,
+  getTodaySessionCount,
+  getTodayTotalSec,
+  type FocusSession,
+} from '@/store/pomodoroJourneyAggregates'
+import { usePomodoroJourneyStore } from '@/store/pomodoroJourneyStore'
 import { useDashboardStore } from '@/store/dashboardStore'
 import { useWidgetDataStore } from '@/store/widgetDataStore'
 import type { WidgetType } from '@/types/widget'
@@ -49,10 +57,43 @@ function getBoolean(args: Record<string, unknown>, key: string, fallback: boolea
   return typeof value === 'boolean' ? value : fallback
 }
 
+function getNumber(args: Record<string, unknown>, key: string) {
+  const value = args[key]
+  return typeof value === 'number' && Number.isFinite(value) ? value : null
+}
+
 function getStringArray(args: Record<string, unknown>, key: string) {
   const value = args[key]
   if (!Array.isArray(value)) return []
   return value.filter((item): item is string => typeof item === 'string' && item.trim().length > 0)
+}
+
+function localDateStartMs(dateKey: string | null) {
+  if (!dateKey || !/^\d{4}-\d{2}-\d{2}$/.test(dateKey)) return null
+  const time = parseLocalDateKey(dateKey).getTime()
+  return Number.isFinite(time) ? time : null
+}
+
+function nextLocalDateStartMs(dateKey: string | null) {
+  if (!dateKey || !/^\d{4}-\d{2}-\d{2}$/.test(dateKey)) return null
+  const time = parseLocalDateKey(addDaysToDateKey(dateKey, 1)).getTime()
+  return Number.isFinite(time) ? time : null
+}
+
+function formatPomodoroSession(session: FocusSession) {
+  return {
+    id: session.id,
+    topic: session.topic,
+    localDate: formatLocalDateKey(new Date(session.startedAt)),
+    startedAt: new Date(session.startedAt).toISOString(),
+    endedAt: new Date(session.endedAt).toISOString(),
+    plannedSec: session.plannedSec,
+    actualSec: session.actualSec,
+    plannedMinutes: Math.round(session.plannedSec / 60),
+    actualMinutes: Math.round(session.actualSec / 60),
+    restCount: session.restCount,
+    totalRestSec: session.totalRestSec,
+  }
 }
 
 function getWidgetTitle(widgetId: string) {
@@ -82,6 +123,8 @@ function listWidgets() {
 
 function getDashboardOverview(): ToolResult {
   const data = useWidgetDataStore.getState()
+  const pomodoro = usePomodoroJourneyStore.getState()
+  const now = Date.now()
   return {
     pendingActions: [],
     response: {
@@ -89,10 +132,56 @@ function getDashboardOverview(): ToolResult {
       counts: {
         habits: Object.values(data.habitsByWidget).reduce((sum, habits) => sum + habits.length, 0),
         notes: Object.keys(data.notesByWidget).length + Object.keys(data.linedNotesByWidget).length,
+        pomodoroSessions: pomodoro.aggregates.sessions.length,
         quickLinks: data.quickLinks.length,
         scheduledTasks: Object.values(data.scheduledTasksByWidget).reduce((sum, tasks) => sum + tasks.length, 0),
         todos: Object.values(data.todosByWidget).reduce((sum, todos) => sum + todos.length, 0),
       },
+      pomodoro: {
+        activityPhase: pomodoro.activity.phase,
+        currentJourneyMin: Math.round(pomodoro.aggregates.currentJourneyMin),
+        journeyCount: pomodoro.aggregates.journeys.length,
+        todaySessions: getTodaySessionCount(pomodoro.aggregates.sessions, now),
+        todayTotalSec: getTodayTotalSec(pomodoro.aggregates.sessions, now),
+        thisWeekSessions: getThisWeekSessionCount(pomodoro.aggregates.sessions, now),
+        thisWeekTotalSec: getThisWeekTotalSec(pomodoro.aggregates.sessions, now),
+      },
+    },
+  }
+}
+
+function listPomodoroSessions(args: Record<string, unknown>): ToolResult {
+  const store = usePomodoroJourneyStore.getState()
+  store.reconcile()
+
+  const { activity, aggregates } = usePomodoroJourneyStore.getState()
+  const fromDate = getString(args, 'fromDate')
+  const toDate = getString(args, 'toDate')
+  const fromMs = localDateStartMs(fromDate)
+  const toExclusiveMs = nextLocalDateStartMs(toDate)
+  const limit = Math.max(1, Math.min(50, Math.round(getNumber(args, 'limit') ?? 20)))
+  const filtered = aggregates.sessions
+    .filter((session) => {
+      if (fromMs !== null && session.startedAt < fromMs) return false
+      if (toExclusiveMs !== null && session.startedAt >= toExclusiveMs) return false
+      return true
+    })
+    .sort((a, b) => b.startedAt - a.startedAt)
+  const totalSec = filtered.reduce((sum, session) => sum + session.actualSec, 0)
+
+  return {
+    pendingActions: [],
+    response: {
+      range: { fromDate, toDate },
+      totalSessions: filtered.length,
+      returnedSessions: Math.min(filtered.length, limit),
+      totalSec,
+      totalMinutes: Math.round(totalSec / 60),
+      truncated: filtered.length > limit,
+      currentJourneyMin: Math.round(aggregates.currentJourneyMin),
+      journeyCount: aggregates.journeys.length,
+      activity,
+      sessions: filtered.slice(0, limit).map(formatPomodoroSession),
     },
   }
 }
@@ -476,6 +565,8 @@ export async function executeDashboardTool(call: GeminiFunctionCall): Promise<To
   switch (call.name) {
     case 'get_dashboard_overview':
       return getDashboardOverview()
+    case 'list_pomodoro_sessions':
+      return listPomodoroSessions(args)
     case 'list_todos':
       return listTodos(args)
     case 'list_scheduled_tasks':

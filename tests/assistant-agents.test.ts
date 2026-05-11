@@ -65,6 +65,7 @@ describe('assistant multi-agent routing', () => {
 
   it('classifies Chinese requests into dashboard, memory, and general routes', () => {
     expect(classifyRouteHeuristically('今天有哪些任务？').intent).toBe('dashboard_operation')
+    expect(classifyRouteHeuristically('查询番茄钟计时历史记录').intent).toBe('dashboard_operation')
     expect(classifyRouteHeuristically('你记得我的工作习惯吗？').intent).toBe('memory_question')
     expect(classifyRouteHeuristically('解释一下什么是时间盒。').intent).toBe('general_answer')
   })

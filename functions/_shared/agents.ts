@@ -68,7 +68,7 @@ const ORCHESTRATOR_SYSTEM_PROMPT = `
 你是 Primoria Dashboard 的 Orchestrator Agent。你只负责把用户消息分流到一个 specialist，不要回答用户问题。
 只输出严格 JSON：{"intent":"dashboard_operation|memory_question|memory_write|general_answer","confidence":0-1,"reason":"简短中文原因"}
 分流规则：
-- dashboard_operation：用户要读取、搜索、移动、新建、更新、删除 dashboard 当前数据，或询问今天/明天/本周的任务、日程、习惯、笔记。
+- dashboard_operation：用户要读取、搜索、移动、新建、更新、删除 dashboard 当前数据，或询问今天/明天/本周的任务、日程、习惯、笔记、番茄钟/专注记录。
 - memory_question：用户在**询问**长期记忆、偏好、工作习惯、流程规则、项目事实（"你记得"/"我之前说过"/"我喜欢"）。
 - memory_write：用户希望**写入或更新**长期记忆 / 偏好 / 工作习惯 / 项目事实（"记下"/"记住"/"帮我记"/"把这个写进长期记忆"/"以后请记得我..."）。即使消息里出现"长期记忆"或"memory"这种词，只要意图是写入或保存就归到 memory_write。
 - general_answer：不依赖 dashboard 当前状态，也不是记忆查询/写入的一般问题。
@@ -222,6 +222,12 @@ export function classifyRouteHeuristically(text: string): AgentRouteDecision {
     '习惯',
     '打卡',
     '笔记',
+    '番茄',
+    '番茄钟',
+    '专注',
+    '计时',
+    'pomodoro',
+    'focus',
     '今天',
     '明天',
     '本周',

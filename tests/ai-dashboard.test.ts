@@ -1,8 +1,9 @@
 import { beforeEach, describe, expect, it } from 'vitest'
-import { applyPendingActions } from '@/lib/ai/dashboardTools'
+import { applyPendingActions, executeDashboardTool } from '@/lib/ai/dashboardTools'
 import { buildBriefContext, getLocalDayIsoRange } from '@/lib/ai/briefContext'
 import { migrateLegacyNotesToWidgetStore } from '@/lib/notesMigration'
 import { useDashboardStore } from '@/store/dashboardStore'
+import { usePomodoroJourneyStore } from '@/store/pomodoroJourneyStore'
 import {
   createLinedNotesDocument,
   normalizeLinedNotesDocument,
@@ -31,6 +32,13 @@ function resetStores(widgets: WidgetInstance[] = []) {
     quickLinks: [],
     scheduledTasksByWidget: {},
     todosByWidget: {},
+  })
+  usePomodoroJourneyStore.setState({
+    activity: { phase: 'IDLE' },
+    aggregates: { currentJourneyMin: 0, journeys: [], sessions: [] },
+    defaultDuration: 1500,
+    lastTopic: '',
+    notificationPermission: 'default',
   })
 }
 
@@ -129,6 +137,53 @@ describe('dashboard AI foundations', () => {
     const moved = useWidgetDataStore.getState().scheduledTasksByWidget['schedule-1'][0]
     expect(moved.dueDate).toBe('2026-05-11')
     expect(moved.completedAt).toBe('2026-05-11')
+  })
+
+  it('lets the dashboard AI read pomodoro timer history by local date range', async () => {
+    usePomodoroJourneyStore.setState({
+      aggregates: {
+        currentJourneyMin: 35,
+        journeys: [],
+        sessions: [
+          {
+            actualSec: 1500,
+            endedAt: new Date(2026, 4, 5, 10, 25).getTime(),
+            id: 'focus-1',
+            plannedSec: 1500,
+            restCount: 0,
+            startedAt: new Date(2026, 4, 5, 10, 0).getTime(),
+            topic: '写产品文档',
+            totalRestSec: 0,
+          },
+          {
+            actualSec: 600,
+            endedAt: new Date(2026, 4, 6, 11, 10).getTime(),
+            id: 'focus-2',
+            plannedSec: 900,
+            restCount: 1,
+            startedAt: new Date(2026, 4, 6, 11, 0).getTime(),
+            topic: '复盘',
+            totalRestSec: 300,
+          },
+        ],
+      },
+    })
+
+    const result = await executeDashboardTool({
+      args: { fromDate: '2026-05-05', toDate: '2026-05-05' },
+      name: 'list_pomodoro_sessions',
+    })
+
+    expect(result.response.totalSessions).toBe(1)
+    expect(result.response.totalMinutes).toBe(25)
+    expect(result.response.sessions).toEqual([
+      expect.objectContaining({
+        actualMinutes: 25,
+        id: 'focus-1',
+        localDate: '2026-05-05',
+        topic: '写产品文档',
+      }),
+    ])
   })
 
   it('returns a one-day ISO range for a local date key', () => {
