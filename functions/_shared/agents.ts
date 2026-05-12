@@ -377,12 +377,14 @@ export async function runGeminiAgent({
 }
 
 export async function runRagRetriever({
+  accessToken,
   env,
   matchCount,
   query,
   sourceTypes,
   userId,
 }: {
+  accessToken?: string
   env: FunctionEnv
   matchCount?: number
   query: string
@@ -396,6 +398,7 @@ export async function runRagRetriever({
   const startedAt = now()
   try {
     const result = await retrieveAssistantRag({
+      accessToken,
       env,
       matchCount,
       query,

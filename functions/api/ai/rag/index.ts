@@ -36,6 +36,7 @@ export async function onRequestPost({ env, request }: PagesContext) {
     const user = await requireUser(request, env)
     const body = await readJsonBody<RagIndexBody>(request)
     const result = await indexAssistantRag({
+      accessToken: user.accessToken,
       env,
       limit: normalizeLimit(body.limit),
       sourceTypes: normalizeSourceTypes(body.sourceTypes),

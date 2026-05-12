@@ -51,6 +51,7 @@ export async function onRequestPost({ env, request }: PagesContext) {
         latestUserText,
       }),
       runRagRetriever({
+        accessToken: user.accessToken,
         env,
         query: latestUserText,
         userId: user.id,

@@ -1,5 +1,5 @@
 import { generateGeminiContent, getGeminiModel } from './gemini'
-import { HttpError, type FunctionEnv } from './http'
+import { getSupabaseAnonKey, HttpError, type FunctionEnv } from './http'
 import type { AssistantReflectionResult, StoredReflectionRow } from './reflection'
 
 export const ASSISTANT_MEMORY_TYPES = [
@@ -68,14 +68,16 @@ const MEMORY_SYSTEM_PROMPT = `
 confidence 低于 0.6 的候选不要输出。
 `.trim()
 
-function restHeaders(env: FunctionEnv, prefer?: string) {
-  if (!env.SUPABASE_SERVICE_ROLE_KEY) {
+function restHeaders(env: FunctionEnv, prefer?: string, accessToken?: string) {
+  if (!accessToken && !env.SUPABASE_SERVICE_ROLE_KEY) {
     throw new HttpError(500, 'SUPABASE_SERVICE_ROLE_KEY is not configured')
   }
+  const apiKey = accessToken ? getSupabaseAnonKey(env) : env.SUPABASE_SERVICE_ROLE_KEY!
+  const authorization = accessToken ?? env.SUPABASE_SERVICE_ROLE_KEY!
 
   return {
-    apikey: env.SUPABASE_SERVICE_ROLE_KEY,
-    authorization: `Bearer ${env.SUPABASE_SERVICE_ROLE_KEY}`,
+    apikey: apiKey,
+    authorization: `Bearer ${authorization}`,
     'content-type': 'application/json',
     ...(prefer ? { prefer } : {}),
   }
@@ -370,9 +372,11 @@ export function buildMemoryMutations({
 }
 
 export async function readAssistantMemories({
+  accessToken,
   env,
   userId,
 }: {
+  accessToken?: string
   env: FunctionEnv
   userId: string
 }) {
@@ -383,7 +387,7 @@ export async function readAssistantMemories({
     user_id: `eq.${userId}`,
   })
   const response = await fetch(`${supabaseUrl}/rest/v1/user_assistant_memories?${params.toString()}`, {
-    headers: restHeaders(env),
+    headers: restHeaders(env, undefined, accessToken),
   })
 
   if (!response.ok) throw new HttpError(500, 'Unable to read assistant memories')
@@ -392,9 +396,11 @@ export async function readAssistantMemories({
 }
 
 async function insertMemoryRows({
+  accessToken,
   env,
   rows,
 }: {
+  accessToken?: string
   env: FunctionEnv
   rows: Record<string, unknown>[]
 }) {
@@ -402,17 +408,19 @@ async function insertMemoryRows({
   const supabaseUrl = getSupabaseRestUrl(env)
   const response = await fetch(`${supabaseUrl}/rest/v1/user_assistant_memories`, {
     body: JSON.stringify(rows),
-    headers: restHeaders(env, 'return=minimal'),
+    headers: restHeaders(env, 'return=minimal', accessToken),
     method: 'POST',
   })
   if (!response.ok) throw new HttpError(500, 'Unable to insert assistant memories')
 }
 
 async function patchMemoryRows({
+  accessToken,
   env,
   rows,
   userId,
 }: {
+  accessToken?: string
   env: FunctionEnv
   rows: Array<{ id: string; row: Record<string, unknown> }>
   userId: string
@@ -422,7 +430,7 @@ async function patchMemoryRows({
     const params = new URLSearchParams({ id: `eq.${item.id}`, user_id: `eq.${userId}` })
     const response = await fetch(`${supabaseUrl}/rest/v1/user_assistant_memories?${params.toString()}`, {
       body: JSON.stringify(item.row),
-      headers: restHeaders(env, 'return=minimal'),
+      headers: restHeaders(env, 'return=minimal', accessToken),
       method: 'PATCH',
     })
     if (!response.ok) throw new HttpError(500, 'Unable to update assistant memory')
@@ -430,11 +438,13 @@ async function patchMemoryRows({
 }
 
 async function markReflectionMemoryExtracted({
+  accessToken,
   env,
   reflection,
   summary,
   userId,
 }: {
+  accessToken?: string
   env: FunctionEnv
   reflection: ReflectionWithMemoryState
   summary: AssistantMemoryUpdateSummary
@@ -451,17 +461,19 @@ async function markReflectionMemoryExtracted({
       memory_source_fingerprint: reflection.source_fingerprint,
       memory_update_count: summary.created + summary.updated,
     }),
-    headers: restHeaders(env, 'return=minimal'),
+    headers: restHeaders(env, 'return=minimal', accessToken),
     method: 'PATCH',
   })
   if (!response.ok) throw new HttpError(500, 'Unable to mark assistant reflection memory extraction')
 }
 
 export async function extractAssistantMemories({
+  accessToken,
   env,
   reflection,
   userId,
 }: {
+  accessToken?: string
   env: FunctionEnv
   reflection: ReflectionWithMemoryState
   userId: string
@@ -473,7 +485,7 @@ export async function extractAssistantMemories({
     return { created: 0, extracted: false, skipped: 0, updated: 0 }
   }
 
-  const existingMemories = await readAssistantMemories({ env, userId })
+  const existingMemories = await readAssistantMemories({ accessToken, env, userId })
   let parsed = { candidates: [] as LlmMemoryCandidate[], skipped: 0 }
 
   try {
@@ -500,8 +512,8 @@ export async function extractAssistantMemories({
     userId,
   })
 
-  await insertMemoryRows({ env, rows: mutations.createRows })
-  await patchMemoryRows({ env, rows: mutations.updateRows, userId })
+  await insertMemoryRows({ accessToken, env, rows: mutations.createRows })
+  await patchMemoryRows({ accessToken, env, rows: mutations.updateRows, userId })
 
   const summary = {
     created: mutations.createRows.length,
@@ -509,15 +521,17 @@ export async function extractAssistantMemories({
     skipped: mutations.skipped,
     updated: mutations.updateRows.length,
   }
-  await markReflectionMemoryExtracted({ env, reflection, summary, userId })
+  await markReflectionMemoryExtracted({ accessToken, env, reflection, summary, userId })
   return summary
 }
 
 export async function createAssistantMemory({
+  accessToken,
   env,
   input,
   userId,
 }: {
+  accessToken?: string
   env: FunctionEnv
   input: {
     body?: unknown
@@ -559,7 +573,7 @@ export async function createAssistantMemory({
   const params = new URLSearchParams({ select: MEMORY_SELECT })
   const response = await fetch(`${supabaseUrl}/rest/v1/user_assistant_memories?${params.toString()}`, {
     body: JSON.stringify(row),
-    headers: restHeaders(env, 'return=representation'),
+    headers: restHeaders(env, 'return=representation', accessToken),
     method: 'POST',
   })
 
@@ -570,10 +584,12 @@ export async function createAssistantMemory({
 }
 
 export async function updateAssistantMemory({
+  accessToken,
   env,
   input,
   userId,
 }: {
+  accessToken?: string
   env: FunctionEnv
   input: {
     body?: unknown
@@ -610,7 +626,7 @@ export async function updateAssistantMemory({
   const params = new URLSearchParams({ id: `eq.${id}`, select: MEMORY_SELECT, user_id: `eq.${userId}` })
   const response = await fetch(`${supabaseUrl}/rest/v1/user_assistant_memories?${params.toString()}`, {
     body: JSON.stringify(patch),
-    headers: restHeaders(env, 'return=representation'),
+    headers: restHeaders(env, 'return=representation', accessToken),
     method: 'PATCH',
   })
 
@@ -621,10 +637,12 @@ export async function updateAssistantMemory({
 }
 
 export async function deleteAssistantMemory({
+  accessToken,
   env,
   id,
   userId,
 }: {
+  accessToken?: string
   env: FunctionEnv
   id: string | null
   userId: string
@@ -633,7 +651,7 @@ export async function deleteAssistantMemory({
   const supabaseUrl = getSupabaseRestUrl(env)
   const params = new URLSearchParams({ id: `eq.${id}`, user_id: `eq.${userId}` })
   const response = await fetch(`${supabaseUrl}/rest/v1/user_assistant_memories?${params.toString()}`, {
-    headers: restHeaders(env, 'return=minimal'),
+    headers: restHeaders(env, 'return=minimal', accessToken),
     method: 'DELETE',
   })
   if (!response.ok) throw new HttpError(500, 'Unable to delete assistant memory')

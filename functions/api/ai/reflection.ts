@@ -54,10 +54,12 @@ const REFLECTION_SYSTEM_PROMPT = `
 `.trim()
 
 async function safeExtractMemories({
+  accessToken,
   env,
   reflection,
   userId,
 }: {
+  accessToken: string
   env: PagesContext['env']
   reflection: AssistantReflectionResult | StoredReflectionRow
   userId: string
@@ -67,7 +69,7 @@ async function safeExtractMemories({
 }> {
   const startedAt = Date.now()
   try {
-    const summary = await extractAssistantMemories({ env, reflection, userId })
+    const summary = await extractAssistantMemories({ accessToken, env, reflection, userId })
     return {
       summary,
       trace: createAgentTraceItem({
@@ -93,10 +95,12 @@ async function safeExtractMemories({
 }
 
 async function safeRetrieveReflectionRag({
+  accessToken,
   env,
   query,
   userId,
 }: {
+  accessToken: string
   env: PagesContext['env']
   query: string
   userId: string
@@ -106,6 +110,7 @@ async function safeRetrieveReflectionRag({
       env,
       query,
       sourceTypes: ['assistant_memory', 'assistant_reflection'],
+      accessToken,
       userId,
     })
   } catch {
@@ -125,14 +130,17 @@ async function safeRetrieveReflectionRag({
 }
 
 async function safeIndexReflectionMemory({
+  accessToken,
   env,
   userId,
 }: {
+  accessToken: string
   env: PagesContext['env']
   userId: string
 }) {
   try {
     await indexAssistantRag({
+      accessToken,
       env,
       sourceTypes: ['assistant_reflection', 'assistant_memory'],
       userId,
@@ -214,14 +222,20 @@ export async function onRequestPost({ env, request }: PagesContext) {
       source_fingerprint: sourceFingerprint,
     }
     const rag = await safeRetrieveReflectionRag({
+      accessToken: user.accessToken,
       env,
       query: buildReflectionRagQuery({ period, periodType, ruleResult }),
       userId: user.id,
     })
 
     if (cached?.source_fingerprint === sourceFingerprint) {
-      const memoryUpdates = await safeExtractMemories({ env, reflection: cached, userId: user.id })
-      await safeIndexReflectionMemory({ env, userId: user.id })
+      const memoryUpdates = await safeExtractMemories({
+        accessToken: user.accessToken,
+        env,
+        reflection: cached,
+        userId: user.id,
+      })
+      await safeIndexReflectionMemory({ accessToken: user.accessToken, env, userId: user.id })
       return jsonResponse({
         ...cached,
         agent_trace: [
@@ -268,8 +282,13 @@ export async function onRequestPost({ env, request }: PagesContext) {
     }
 
     await upsertReflection({ accessToken: user.accessToken, env, result, userId: user.id })
-    const memoryUpdates = await safeExtractMemories({ env, reflection: result, userId: user.id })
-    await safeIndexReflectionMemory({ env, userId: user.id })
+    const memoryUpdates = await safeExtractMemories({
+      accessToken: user.accessToken,
+      env,
+      reflection: result,
+      userId: user.id,
+    })
+    await safeIndexReflectionMemory({ accessToken: user.accessToken, env, userId: user.id })
     return jsonResponse({
       ...result,
       agent_trace: [

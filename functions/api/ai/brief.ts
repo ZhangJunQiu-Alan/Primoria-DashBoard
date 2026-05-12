@@ -40,6 +40,7 @@ export async function onRequestPost({ env, request }: PagesContext) {
     const user = await requireUser(request, env)
     const body = await readJsonBody<BriefBody>(request)
     const rag = await runRagRetriever({
+      accessToken: user.accessToken,
       env,
       query: JSON.stringify({
         context: body.context,

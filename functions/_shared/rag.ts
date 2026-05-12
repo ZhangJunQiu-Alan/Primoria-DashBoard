@@ -3,7 +3,7 @@ import {
   GEMINI_EMBEDDING_MODEL,
   generateGeminiEmbedding,
 } from './gemini'
-import { HttpError, type FunctionEnv } from './http'
+import { getSupabaseAnonKey, HttpError, type FunctionEnv } from './http'
 
 export const ASSISTANT_RAG_SOURCE_TYPES = [
   'content_item',
@@ -63,13 +63,15 @@ const RAG_INDEX_BATCH_SIZE = 40
 const MAX_RAG_BODY_LENGTH = 1800
 const MAX_RAG_CONTEXT_SOURCES = 6
 
-function restHeaders(env: FunctionEnv, prefer?: string) {
-  if (!env.SUPABASE_SERVICE_ROLE_KEY) {
+function restHeaders(env: FunctionEnv, prefer?: string, accessToken?: string) {
+  if (!accessToken && !env.SUPABASE_SERVICE_ROLE_KEY) {
     throw new HttpError(500, 'SUPABASE_SERVICE_ROLE_KEY is not configured')
   }
+  const apiKey = accessToken ? getSupabaseAnonKey(env) : env.SUPABASE_SERVICE_ROLE_KEY!
+  const authorization = accessToken ?? env.SUPABASE_SERVICE_ROLE_KEY!
   return {
-    apikey: env.SUPABASE_SERVICE_ROLE_KEY,
-    authorization: `Bearer ${env.SUPABASE_SERVICE_ROLE_KEY}`,
+    apikey: apiKey,
+    authorization: `Bearer ${authorization}`,
     'content-type': 'application/json',
     ...(prefer ? { prefer } : {}),
   }
@@ -240,11 +242,13 @@ function memorySource(row: Record<string, unknown>): SourceRow {
 }
 
 async function readTableRows({
+  accessToken,
   env,
   path,
   select,
   userId,
 }: {
+  accessToken?: string
   env: FunctionEnv
   path: string
   select: string
@@ -258,17 +262,19 @@ async function readTableRows({
     user_id: `eq.${userId}`,
   })
   const response = await fetch(`${supabaseUrl}/rest/v1/${path}?${params.toString()}`, {
-    headers: restHeaders(env),
+    headers: restHeaders(env, undefined, accessToken),
   })
   if (!response.ok) throw new HttpError(500, `Unable to read ${path}`)
   return await response.json() as Record<string, unknown>[]
 }
 
 async function readAssistantRagSources({
+  accessToken,
   env,
   sourceTypes,
   userId,
 }: {
+  accessToken?: string
   env: FunctionEnv
   sourceTypes: AssistantRagSourceType[]
   userId: string
@@ -278,6 +284,7 @@ async function readAssistantRagSources({
   if (sourceTypes.includes('content_item')) {
     promises.push(
       readTableRows({
+        accessToken,
         env,
         path: 'user_content_items',
         select: 'id,body,content_hash,content_key,content_type,metadata,source_updated_at,title,updated_at',
@@ -289,6 +296,7 @@ async function readAssistantRagSources({
   if (sourceTypes.includes('assistant_reflection')) {
     promises.push(
       readTableRows({
+        accessToken,
         env,
         path: 'user_assistant_reflections',
         select: 'id,completion_summary,evidence,generated_at,habit_signals,period_end,period_start,period_type,priority_items,reflection_key,source_fingerprint,suggestions,summary,updated_at',
@@ -300,6 +308,7 @@ async function readAssistantRagSources({
   if (sourceTypes.includes('assistant_memory')) {
     promises.push(
       readTableRows({
+        accessToken,
         env,
         path: 'user_assistant_memories',
         select: 'id,body,confidence,evidence,last_seen_at,memory_type,scope,source_reflection_keys,title,updated_at,user_modified_at',
@@ -312,10 +321,12 @@ async function readAssistantRagSources({
 }
 
 async function readExistingChunks({
+  accessToken,
   env,
   sourceTypes,
   userId,
 }: {
+  accessToken?: string
   env: FunctionEnv
   sourceTypes: AssistantRagSourceType[]
   userId: string
@@ -327,7 +338,7 @@ async function readExistingChunks({
     user_id: `eq.${userId}`,
   })
   const response = await fetch(`${supabaseUrl}/rest/v1/user_assistant_rag_chunks?${params.toString()}`, {
-    headers: restHeaders(env),
+    headers: restHeaders(env, undefined, accessToken),
   })
   if (!response.ok) throw new HttpError(500, 'Unable to read assistant RAG chunks')
   const rows = await response.json() as Record<string, unknown>[]
@@ -342,9 +353,11 @@ async function readExistingChunks({
 }
 
 async function deleteStaleChunks({
+  accessToken,
   env,
   staleIds,
 }: {
+  accessToken?: string
   env: FunctionEnv
   staleIds: string[]
 }) {
@@ -355,7 +368,7 @@ async function deleteStaleChunks({
     const batch = staleIds.slice(index, index + 50)
     const params = new URLSearchParams({ id: `in.(${batch.join(',')})` })
     const response = await fetch(`${supabaseUrl}/rest/v1/user_assistant_rag_chunks?${params.toString()}`, {
-      headers: restHeaders(env, 'return=minimal'),
+      headers: restHeaders(env, 'return=minimal', accessToken),
       method: 'DELETE',
     })
     if (!response.ok) throw new HttpError(500, 'Unable to delete stale assistant RAG chunks')
@@ -365,9 +378,11 @@ async function deleteStaleChunks({
 }
 
 async function upsertRagChunkRows({
+  accessToken,
   env,
   rows,
 }: {
+  accessToken?: string
   env: FunctionEnv
   rows: Record<string, unknown>[]
 }) {
@@ -377,7 +392,7 @@ async function upsertRagChunkRows({
     `${supabaseUrl}/rest/v1/user_assistant_rag_chunks?on_conflict=user_id,source_type,source_key,chunk_index`,
     {
       body: JSON.stringify(rows),
-      headers: restHeaders(env, 'resolution=merge-duplicates,return=minimal'),
+      headers: restHeaders(env, 'resolution=merge-duplicates,return=minimal', accessToken),
       method: 'POST',
     }
   )
@@ -385,22 +400,25 @@ async function upsertRagChunkRows({
 }
 
 export async function indexAssistantRag({
+  accessToken,
   env,
   limit = RAG_INDEX_BATCH_SIZE,
   sourceTypes = [...ASSISTANT_RAG_SOURCE_TYPES],
   userId,
 }: {
+  accessToken?: string
   env: FunctionEnv
   limit?: number
   sourceTypes?: AssistantRagSourceType[]
   userId: string
 }): Promise<AssistantRagIndexResult> {
-  const sources = await readAssistantRagSources({ env, sourceTypes, userId })
+  const sources = await readAssistantRagSources({ accessToken, env, sourceTypes, userId })
   const drafts = sources.map(buildRagChunkDraft)
-  const existing = await readExistingChunks({ env, sourceTypes, userId })
+  const existing = await readExistingChunks({ accessToken, env, sourceTypes, userId })
   const existingByKey = new Map(existing.map((chunk) => [chunkKey(chunk), chunk]))
   const desiredKeys = new Set(drafts.map(chunkKey))
   const staleDeleted = await deleteStaleChunks({
+    accessToken,
     env,
     staleIds: existing.filter((chunk) => !desiredKeys.has(chunkKey(chunk))).map((chunk) => chunk.id),
   })
@@ -432,7 +450,7 @@ export async function indexAssistantRag({
     })
   }
 
-  await upsertRagChunkRows({ env, rows })
+  await upsertRagChunkRows({ accessToken, env, rows })
 
   return {
     indexed: rows.length,
@@ -452,12 +470,14 @@ function extractSearchToken(query: string) {
 }
 
 async function fallbackSearchRagSources({
+  accessToken,
   env,
   matchCount,
   query,
   sourceTypes,
   userId,
 }: {
+  accessToken?: string
   env: FunctionEnv
   matchCount: number
   query: string
@@ -476,7 +496,7 @@ async function fallbackSearchRagSources({
     user_id: `eq.${userId}`,
   })
   const response = await fetch(`${supabaseUrl}/rest/v1/user_assistant_rag_chunks?${params.toString()}`, {
-    headers: restHeaders(env),
+    headers: restHeaders(env, undefined, accessToken),
   })
   if (!response.ok) return []
   const rows = await response.json() as Record<string, unknown>[]
@@ -485,12 +505,14 @@ async function fallbackSearchRagSources({
 }
 
 export async function retrieveAssistantRag({
+  accessToken,
   env,
   matchCount = MAX_RAG_CONTEXT_SOURCES,
   query,
   sourceTypes = [...ASSISTANT_RAG_SOURCE_TYPES],
   userId,
 }: {
+  accessToken?: string
   env: FunctionEnv
   matchCount?: number
   query: string
@@ -516,7 +538,7 @@ export async function retrieveAssistantRag({
         source_types: sourceTypes,
         target_user_id: userId,
       }),
-      headers: restHeaders(env),
+      headers: restHeaders(env, undefined, accessToken),
       method: 'POST',
     })
     if (response.ok) {
@@ -529,7 +551,7 @@ export async function retrieveAssistantRag({
 
   if (ragSources.length === 0) {
     try {
-      ragSources = await fallbackSearchRagSources({ env, matchCount, query: safeQuery, sourceTypes, userId })
+      ragSources = await fallbackSearchRagSources({ accessToken, env, matchCount, query: safeQuery, sourceTypes, userId })
     } catch {
       ragSources = []
     }
