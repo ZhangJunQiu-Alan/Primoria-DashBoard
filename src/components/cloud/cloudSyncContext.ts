@@ -1,10 +1,11 @@
 import { createContext, useContext } from 'react'
 import type { User } from '@/lib/supabase'
 
-export type SyncStatus = 'local' | 'checking' | 'ready' | 'syncing' | 'error'
+export type SyncStatus = 'local' | 'checking' | 'ready' | 'syncing' | 'error' | 'offline' | 'pending' | 'conflict'
 
 export interface CloudSyncContextValue {
   configured: boolean
+  online: boolean
   user: User | null
   status: SyncStatus
   message: string | null

@@ -40,7 +40,7 @@ function formatAgentTrace(trace: AssistantAgentTraceItem[] | undefined) {
 }
 
 export function DailyBriefWidget({ widgetId: _widgetId }: DailyBriefWidgetProps) {
-  const { configured, user } = useCloudSync()
+  const { configured, online, user } = useCloudSync()
   const today = useCurrentDayKey()
   const brief = useWidgetDataStore((s) => s.dailyBriefsByDate[today])
   const setDailyBrief = useWidgetDataStore((s) => s.setDailyBrief)
@@ -49,7 +49,8 @@ export function DailyBriefWidget({ widgetId: _widgetId }: DailyBriefWidgetProps)
   const [calendarConnected, setCalendarConnected] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const ready = configured && Boolean(user)
+  const loggedIn = configured && Boolean(user)
+  const ready = loggedIn && online
 
   useEffect(() => {
     if (!ready) return
@@ -152,6 +153,7 @@ export function DailyBriefWidget({ widgetId: _widgetId }: DailyBriefWidgetProps)
       widgetType: 'daily-brief',
     })
     try {
+      if (!online) throw new Error('离线时无法连接 Google Calendar。')
       await connectGoogleCalendar()
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Google Calendar 连接失败'
@@ -160,15 +162,28 @@ export function DailyBriefWidget({ widgetId: _widgetId }: DailyBriefWidgetProps)
   }
 
   function handleRefresh() {
+    if (!online) {
+      toast.error('离线时无法刷新每日简报。')
+      return
+    }
     removeDailyBrief(today)
     void loadBrief(true)
   }
 
-  if (!ready) {
+  if (!loggedIn) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-3 text-center">
         <Sparkles size={28} style={{ color: 'var(--border)' }} />
         <p style={{ fontSize: '14px', color: 'var(--text-muted)' }}>登录后生成每日简报</p>
+      </div>
+    )
+  }
+
+  if (!online && !brief) {
+    return (
+      <div className="flex h-full flex-col items-center justify-center gap-3 text-center">
+        <Sparkles size={28} style={{ color: 'var(--border)' }} />
+        <p style={{ fontSize: '14px', color: 'var(--text-muted)' }}>离线时无法生成每日简报</p>
       </div>
     )
   }
@@ -194,8 +209,9 @@ export function DailyBriefWidget({ widgetId: _widgetId }: DailyBriefWidgetProps)
         {!calendarConnected && (
           <button
             onClick={handleConnectCalendar}
+            disabled={!online}
             className="rounded-lg px-2 py-1 text-xs font-semibold"
-            style={{ color: 'white', background: 'var(--primary)' }}
+            style={{ color: 'white', background: 'var(--primary)', opacity: online ? 1 : 0.6 }}
           >
             连接
           </button>
@@ -265,7 +281,7 @@ export function DailyBriefWidget({ widgetId: _widgetId }: DailyBriefWidgetProps)
 
       <button
         onClick={handleRefresh}
-        disabled={loading}
+        disabled={loading || !online}
         className="flex flex-shrink-0 items-center justify-center gap-1.5 rounded-xl py-2 text-sm font-semibold disabled:opacity-60"
         style={{ background: 'var(--bg-muted)', color: 'var(--text-sub)', border: '1px solid var(--border)' }}
       >

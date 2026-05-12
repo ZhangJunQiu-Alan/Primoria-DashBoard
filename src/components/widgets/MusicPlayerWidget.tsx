@@ -45,7 +45,7 @@ function useElementSize<T extends HTMLElement>() {
 }
 
 export function MusicPlayerWidget({ widgetId }: MusicPlayerWidgetProps) {
-  const { user, signIn } = useCloudSync()
+  const { online, user, signIn } = useCloudSync()
   const { ref, width, height } = useElementSize<HTMLDivElement>()
 
   const tracks = useMusicStore((s) => s.tracks)
@@ -88,8 +88,8 @@ export function MusicPlayerWidget({ widgetId }: MusicPlayerWidgetProps) {
       reset()
       return
     }
-    refresh(user.id)
-  }, [user, refresh, reset])
+    if (online) refresh(user.id)
+  }, [online, user, refresh, reset])
 
   const currentObjectUrlRef = useRef<string | null>(null)
 
@@ -467,7 +467,11 @@ export function MusicPlayerWidget({ widgetId }: MusicPlayerWidgetProps) {
         >
           <ListMusic size={16} />
         </ControlButton>
-        <ControlButton onClick={() => fileInputRef.current?.click()} title="上传 MP3">
+        <ControlButton
+          disabled={!online}
+          onClick={() => fileInputRef.current?.click()}
+          title={online ? '上传 MP3' : '离线时无法上传'}
+        >
           <Plus size={16} />
         </ControlButton>
       </div>

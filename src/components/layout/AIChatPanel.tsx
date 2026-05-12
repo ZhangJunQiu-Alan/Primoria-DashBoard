@@ -248,7 +248,7 @@ function AgentTraceLine({ trace }: { trace?: AssistantAgentTraceItem[] }) {
 }
 
 export function AIChatPanel({ open, onClose }: AIChatPanelProps) {
-  const { configured, pushNow, user } = useCloudSync()
+  const { configured, online, pushNow, user } = useCloudSync()
   const saveAiConversation = useWidgetDataStore((s) => s.saveAiConversation)
   const storedConversation = useWidgetDataStore((s) => s.aiConversations[DEFAULT_AI_CONVERSATION_ID])
   const initialConversationRef = useRef(
@@ -284,7 +284,8 @@ export function AIChatPanel({ open, onClose }: AIChatPanelProps) {
   const toolCallsRef = useRef<AiToolCallRecord[]>(initialConversationRef.current.toolCalls)
   const loadedUpdatedAtRef = useRef(initialConversationRef.current.updatedAt)
 
-  const ready = configured && Boolean(user)
+  const loggedIn = configured && Boolean(user)
+  const ready = loggedIn && online
 
   const loadMemories = useCallback(async () => {
     if (!ready) {
@@ -739,7 +740,7 @@ export function AIChatPanel({ open, onClose }: AIChatPanelProps) {
               Dashboard Agent
             </p>
             <p style={{ fontSize: '10px', color: ready ? 'var(--primary-dark)' : 'var(--text-muted)' }}>
-              {ready ? '已连接 Gemini' : configured ? '请先登录' : '未配置 Supabase'}
+              {ready ? '已连接 Gemini' : !online && loggedIn ? '离线中，AI 暂不可用' : configured ? '请先登录' : '未配置 Supabase'}
             </p>
           </div>
           <button
@@ -926,7 +927,7 @@ export function AIChatPanel({ open, onClose }: AIChatPanelProps) {
                     send()
                   }
                 }}
-                placeholder={ready ? '发送消息… (Enter 发送)' : '登录后可使用 AI'}
+                placeholder={ready ? '发送消息… (Enter 发送)' : !online && loggedIn ? '联网后可继续使用 AI' : '登录后可使用 AI'}
                 rows={1}
                 disabled={!ready || busy || pendingActions.length > 0}
                 className="flex-1 rounded-xl px-3 py-2 text-sm outline-none resize-none disabled:opacity-60"

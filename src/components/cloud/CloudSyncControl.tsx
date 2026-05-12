@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { createPortal } from 'react-dom'
-import { CheckCircle2, Cloud, CloudOff, LoaderCircle, LogIn, LogOut, RefreshCw, X } from 'lucide-react'
+import { AlertTriangle, CheckCircle2, Cloud, CloudOff, LoaderCircle, LogIn, LogOut, RefreshCw, X } from 'lucide-react'
 import { toast } from 'sonner'
 import { useCloudSync } from '@/components/cloud/cloudSyncContext'
 
@@ -12,10 +12,13 @@ function formatSyncTime(value: string | null) {
 export function CloudSyncControl() {
   const cloudSync = useCloudSync()
   const [open, setOpen] = useState(false)
+  const syncing = cloudSync.status === 'syncing' || cloudSync.status === 'checking'
 
   const color = cloudSync.user
-    ? cloudSync.status === 'error'
+    ? cloudSync.status === 'error' || cloudSync.status === 'conflict'
       ? '#B65E52'
+      : cloudSync.status === 'offline' || cloudSync.status === 'pending'
+        ? '#9A7A41'
       : 'var(--primary-dark)'
     : 'var(--text-sub)'
 
@@ -34,8 +37,12 @@ export function CloudSyncControl() {
         }}
         title="云同步"
       >
-        {cloudSync.status === 'syncing' || cloudSync.status === 'checking' ? (
+        {syncing ? (
           <LoaderCircle size={13} className="animate-spin" />
+        ) : cloudSync.status === 'offline' ? (
+          <CloudOff size={13} />
+        ) : cloudSync.status === 'conflict' || cloudSync.status === 'error' ? (
+          <AlertTriangle size={13} />
         ) : cloudSync.user ? (
           <Cloud size={13} />
         ) : (
@@ -50,7 +57,7 @@ export function CloudSyncControl() {
 }
 
 function CloudSyncDialog({ onClose }: { onClose: () => void }) {
-  const { configured, message, pushNow, signIn, signOut, signUp, status, updatedAt, user } = useCloudSync()
+  const { configured, message, online, pushNow, signIn, signOut, signUp, status, updatedAt, user } = useCloudSync()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [busy, setBusy] = useState(false)
@@ -75,8 +82,9 @@ function CloudSyncDialog({ onClose }: { onClose: () => void }) {
   async function handlePushNow() {
     setBusy(true)
     try {
-      await pushNow()
-      toast.success('已手动同步')
+      const synced = await pushNow()
+      if (synced) toast.success('已手动同步')
+      else toast.message('本地更改已保留，联网后会继续同步')
     } catch (error) {
       toast.error(error instanceof Error ? error.message : '手动同步失败')
     } finally {
@@ -98,6 +106,7 @@ function CloudSyncDialog({ onClose }: { onClose: () => void }) {
 
   const ready = status === 'ready'
   const syncing = status === 'syncing' || status === 'checking'
+  const blocked = !online || status === 'conflict'
 
   return (
     <div className="fixed inset-0 z-[70] flex items-center justify-center px-4" style={{ background: 'rgba(61,52,42,0.18)' }}>
@@ -117,7 +126,17 @@ function CloudSyncDialog({ onClose }: { onClose: () => void }) {
               color: user ? 'var(--primary-dark)' : 'var(--text-sub)',
             }}
           >
-            {syncing ? <LoaderCircle size={18} className="animate-spin" /> : user ? <Cloud size={18} /> : <CloudOff size={18} />}
+            {syncing ? (
+              <LoaderCircle size={18} className="animate-spin" />
+            ) : status === 'offline' ? (
+              <CloudOff size={18} />
+            ) : status === 'conflict' || status === 'error' ? (
+              <AlertTriangle size={18} />
+            ) : user ? (
+              <Cloud size={18} />
+            ) : (
+              <CloudOff size={18} />
+            )}
           </div>
           <div className="min-w-0 flex-1">
             <div style={{ fontSize: '16px', fontWeight: 650, color: 'var(--text)' }}>云同步</div>
@@ -142,7 +161,7 @@ function CloudSyncDialog({ onClose }: { onClose: () => void }) {
           <div className="mt-5 flex flex-col gap-3">
             <div className="rounded-xl p-4" style={{ background: 'var(--bg-muted)', border: '1px solid var(--border)' }}>
               <div className="flex items-center gap-2" style={{ color: ready ? 'var(--primary-dark)' : 'var(--text-sub)', fontSize: '13px', fontWeight: 650 }}>
-                {ready ? <CheckCircle2 size={15} /> : <LoaderCircle size={15} className="animate-spin" />}
+                {ready ? <CheckCircle2 size={15} /> : syncing ? <LoaderCircle size={15} className="animate-spin" /> : <AlertTriangle size={15} />}
                 {user.email}
               </div>
               <div style={{ marginTop: '8px', fontSize: '11px', color: 'var(--text-muted)' }}>
@@ -152,9 +171,9 @@ function CloudSyncDialog({ onClose }: { onClose: () => void }) {
 
             <button
               onClick={() => void handlePushNow()}
-              disabled={busy || syncing}
+              disabled={busy || syncing || blocked}
               className="flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold"
-              style={{ background: 'var(--primary)', color: 'white', opacity: busy || syncing ? 0.68 : 1 }}
+              style={{ background: 'var(--primary)', color: 'white', opacity: busy || syncing || blocked ? 0.68 : 1 }}
             >
               {busy || syncing ? <LoaderCircle size={15} className="animate-spin" /> : <RefreshCw size={15} />}
               立即同步
@@ -191,19 +210,19 @@ function CloudSyncDialog({ onClose }: { onClose: () => void }) {
             />
             <button
               onClick={() => void runAuth('sign-in')}
-              disabled={busy || !email.trim() || !password}
+              disabled={busy || !online || !email.trim() || !password}
               className="flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold"
               style={{
-                background: email.trim() && password ? 'var(--text)' : 'var(--border)',
-                color: email.trim() && password ? 'white' : 'var(--text-muted)',
+                background: online && email.trim() && password ? 'var(--text)' : 'var(--border)',
+                color: online && email.trim() && password ? 'white' : 'var(--text-muted)',
               }}
             >
               {busy ? <LoaderCircle size={15} className="animate-spin" /> : <LogIn size={15} />}
-              登录并同步
+              {online ? '登录并同步' : '离线时不能登录'}
             </button>
             <button
               onClick={() => void runAuth('sign-up')}
-              disabled={busy || !email.trim() || !password}
+              disabled={busy || !online || !email.trim() || !password}
               className="rounded-xl px-4 py-2.5 text-sm font-semibold"
               style={{ background: 'var(--bg-muted)', color: 'var(--text-sub)', border: '1px solid var(--border)' }}
             >

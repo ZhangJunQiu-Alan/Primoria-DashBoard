@@ -8,6 +8,8 @@ export interface DashboardSnapshotRow {
   dashboard_state: DashboardSnapshotData | null
   widget_data: WidgetDataSnapshot | null
   background_path: string | null
+  background_signature: string | null
+  sync_revision: number
   updated_at: string
 }
 

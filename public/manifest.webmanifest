@@ -1,0 +1,17 @@
+{
+  "name": "Primoria Dashboard",
+  "short_name": "Primoria",
+  "description": "A local-first personal dashboard with optional cloud sync.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#fefaf5",
+  "theme_color": "#fefaf5",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

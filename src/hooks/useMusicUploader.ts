@@ -16,7 +16,7 @@ interface UseMusicUploaderResult {
 }
 
 export function useMusicUploader(): UseMusicUploaderResult {
-  const { user } = useCloudSync()
+  const { online, user } = useCloudSync()
   const upload = useMusicStore((s) => s.upload)
   const usageBytes = useMusicStore((s) => s.usageBytes)
 
@@ -27,6 +27,10 @@ export function useMusicUploader(): UseMusicUploaderResult {
     async (files: FileList | null) => {
       if (!user) {
         toast.error('请先登录后再上传音乐')
+        return
+      }
+      if (!online) {
+        toast.error('离线时无法上传音乐')
         return
       }
       if (!files || files.length === 0) return
@@ -75,7 +79,7 @@ export function useMusicUploader(): UseMusicUploaderResult {
         setBusy(null)
       }
     },
-    [user, upload, usageBytes]
+    [online, user, upload, usageBytes]
   )
 
   return { uploading, busy, handleFiles }
