@@ -1,4 +1,4 @@
-import { HttpError, type FunctionEnv } from './http'
+import { getSupabaseAnonKey, HttpError, type FunctionEnv } from './http'
 
 export type AssistantReflectionPeriodType = 'daily' | 'weekly'
 
@@ -187,13 +187,10 @@ export function datesInPeriod(period: Pick<ReflectionPeriod, 'periodEnd' | 'peri
   return dates
 }
 
-function restHeaders(env: FunctionEnv) {
-  if (!env.SUPABASE_SERVICE_ROLE_KEY) {
-    throw new HttpError(500, 'SUPABASE_SERVICE_ROLE_KEY is not configured')
-  }
+function restHeaders(env: FunctionEnv, accessToken: string) {
   return {
-    apikey: env.SUPABASE_SERVICE_ROLE_KEY,
-    authorization: `Bearer ${env.SUPABASE_SERVICE_ROLE_KEY}`,
+    apikey: getSupabaseAnonKey(env),
+    authorization: `Bearer ${accessToken}`,
     'content-type': 'application/json',
   }
 }
@@ -205,16 +202,18 @@ export function getSupabaseRestUrl(env: FunctionEnv) {
 }
 
 export async function readReflectionSourceRows({
+  accessToken,
   env,
   period,
   userId,
 }: {
+  accessToken: string
   env: FunctionEnv
   period: ReflectionPeriod
   userId: string
 }) {
   const supabaseUrl = getSupabaseRestUrl(env)
-  const headers = restHeaders(env)
+  const headers = restHeaders(env, accessToken)
   const eventParams = new URLSearchParams({
     actor: 'not.is.null',
     occurred_at: `gte.${period.timeMin}`,
@@ -253,10 +252,12 @@ export async function readReflectionSourceRows({
 }
 
 export async function readCachedReflection({
+  accessToken,
   env,
   reflectionKey,
   userId,
 }: {
+  accessToken: string
   env: FunctionEnv
   reflectionKey: string
   userId: string
@@ -268,7 +269,7 @@ export async function readCachedReflection({
     user_id: `eq.${userId}`,
   })
   const response = await fetch(`${supabaseUrl}/rest/v1/user_assistant_reflections?${params.toString()}`, {
-    headers: restHeaders(env),
+    headers: restHeaders(env, accessToken),
   })
 
   if (!response.ok) {
@@ -280,10 +281,12 @@ export async function readCachedReflection({
 }
 
 export async function upsertReflection({
+  accessToken,
   env,
   result,
   userId,
 }: {
+  accessToken: string
   env: FunctionEnv
   result: AssistantReflectionResult
   userId: string
@@ -310,7 +313,7 @@ export async function upsertReflection({
         user_id: userId,
       }),
       headers: {
-        ...restHeaders(env),
+        ...restHeaders(env, accessToken),
         prefer: 'resolution=merge-duplicates,return=minimal',
       },
       method: 'POST',

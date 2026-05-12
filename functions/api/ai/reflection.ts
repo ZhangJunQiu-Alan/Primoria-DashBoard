@@ -189,7 +189,12 @@ export async function onRequestPost({ env, request }: PagesContext) {
     if (isIsoString(body.timeMin)) period.timeMin = body.timeMin
     if (isIsoString(body.timeMax)) period.timeMax = body.timeMax
 
-    const sourceRows = await readReflectionSourceRows({ env, period, userId: user.id })
+    const sourceRows = await readReflectionSourceRows({
+      accessToken: user.accessToken,
+      env,
+      period,
+      userId: user.id,
+    })
     const sourceContext = {
       contentItems: sourceRows.contentItems,
       events: sourceRows.events,
@@ -198,6 +203,7 @@ export async function onRequestPost({ env, request }: PagesContext) {
     }
     const sourceFingerprint = buildSourceFingerprint(sourceContext)
     const cached = await readCachedReflection({
+      accessToken: user.accessToken,
       env,
       reflectionKey: period.reflectionKey,
       userId: user.id,
@@ -261,7 +267,7 @@ export async function onRequestPost({ env, request }: PagesContext) {
       }
     }
 
-    await upsertReflection({ env, result, userId: user.id })
+    await upsertReflection({ accessToken: user.accessToken, env, result, userId: user.id })
     const memoryUpdates = await safeExtractMemories({ env, reflection: result, userId: user.id })
     await safeIndexReflectionMemory({ env, userId: user.id })
     return jsonResponse({

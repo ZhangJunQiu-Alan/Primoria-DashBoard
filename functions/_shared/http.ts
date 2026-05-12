@@ -21,6 +21,7 @@ export interface PagesContext {
 }
 
 export interface SupabaseUser {
+  accessToken: string
   id: string
   email?: string
 }
@@ -65,6 +66,12 @@ export function getServiceRoleKey(env: FunctionEnv) {
   return env.SUPABASE_SERVICE_ROLE_KEY
 }
 
+export function getSupabaseAnonKey(env: FunctionEnv) {
+  const key = env.SUPABASE_ANON_KEY || env.VITE_SUPABASE_ANON_KEY || env.SUPABASE_SERVICE_ROLE_KEY
+  if (!key) throw new HttpError(500, 'Supabase anon key is not configured')
+  return key
+}
+
 export function getBearerToken(request: Request) {
   const authorization = request.headers.get('authorization') ?? ''
   if (!authorization.startsWith('Bearer ')) {
@@ -76,10 +83,10 @@ export function getBearerToken(request: Request) {
 export async function requireUser(request: Request, env: FunctionEnv) {
   const accessToken = getBearerToken(request)
   const supabaseUrl = getSupabaseUrl(env)
-  const serviceRoleKey = getServiceRoleKey(env)
+  const supabaseApiKey = getSupabaseAnonKey(env)
   const response = await fetch(`${supabaseUrl}/auth/v1/user`, {
     headers: {
-      apikey: serviceRoleKey,
+      apikey: supabaseApiKey,
       authorization: `Bearer ${accessToken}`,
     },
   })
@@ -90,7 +97,7 @@ export async function requireUser(request: Request, env: FunctionEnv) {
 
   const user = await response.json() as SupabaseUser
   if (!user.id) throw new HttpError(401, 'Invalid session user')
-  return user
+  return { ...user, accessToken }
 }
 
 export async function readJsonBody<T>(request: Request) {
