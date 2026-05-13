@@ -2,6 +2,7 @@ export type BehaviorEventActor = 'user' | 'assistant' | 'system'
 
 export type BehaviorEventName =
   | 'ai.error'
+  | 'ai.chat_cleared'
   | 'ai.message_sent'
   | 'ai.pending_actions_cancelled'
   | 'ai.pending_actions_confirmed'

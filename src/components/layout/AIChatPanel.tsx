@@ -249,6 +249,7 @@ function AgentTraceLine({ trace }: { trace?: AssistantAgentTraceItem[] }) {
 
 export function AIChatPanel({ open, onClose }: AIChatPanelProps) {
   const { configured, online, pushNow, user } = useCloudSync()
+  const clearAiConversation = useWidgetDataStore((s) => s.clearAiConversation)
   const saveAiConversation = useWidgetDataStore((s) => s.saveAiConversation)
   const storedConversation = useWidgetDataStore((s) => s.aiConversations[DEFAULT_AI_CONVERSATION_ID])
   const initialConversationRef = useRef(
@@ -286,6 +287,18 @@ export function AIChatPanel({ open, onClose }: AIChatPanelProps) {
 
   const loggedIn = configured && Boolean(user)
   const ready = loggedIn && online
+  const hasChatHistory =
+    messages.length > 0 ||
+    contentsRef.current.length > 0 ||
+    toolCallsRef.current.length > 0 ||
+    pendingActions.length > 0
+  const clearChatDisabled = busy || pendingActions.length > 0 || !hasChatHistory
+  const clearChatTitle =
+    pendingActions.length > 0
+      ? '请先处理待确认变更'
+      : hasChatHistory
+        ? '清除聊天历史'
+        : '暂无可清除的聊天历史'
 
   const loadMemories = useCallback(async () => {
     if (!ready) {
@@ -697,6 +710,36 @@ export function AIChatPanel({ open, onClose }: AIChatPanelProps) {
     appendMessage({ role: 'assistant', content: `已取消 ${count} 项待确认变更。` })
   }
 
+  function clearChatHistory() {
+    if (busy || pendingActionsRef.current.length > 0) return
+
+    const messageCount = messagesRef.current.length
+    const toolCallCount = toolCallsRef.current.length
+    const hasPersistedHistory =
+      messageCount > 0 || contentsRef.current.length > 0 || toolCallCount > 0
+    if (!hasPersistedHistory) return
+    if (!window.confirm('确认清除当前聊天历史吗？长期记忆不会删除。')) return
+
+    const nextConversation = clearAiConversation(DEFAULT_AI_CONVERSATION_ID)
+    contentsRef.current = nextConversation.geminiContents
+    messagesRef.current = nextConversation.messages
+    pendingActionsRef.current = nextConversation.pendingActions
+    toolCallsRef.current = nextConversation.toolCalls
+    loadedUpdatedAtRef.current = nextConversation.updatedAt
+    setInput('')
+    setMessages(nextConversation.messages)
+    setPendingActions(nextConversation.pendingActions)
+    trackBehaviorEvent({
+      actor: 'user',
+      eventName: 'ai.chat_cleared',
+      metadata: { messageCount, toolCallCount },
+      objectId: DEFAULT_AI_CONVERSATION_ID,
+      objectType: 'ai_conversation',
+      summary: `清除 AI 聊天历史：${messageCount} 条消息`,
+      surface: 'ai_chat',
+    })
+  }
+
   return (
     <>
       {open && (
@@ -796,6 +839,20 @@ export function AIChatPanel({ open, onClose }: AIChatPanelProps) {
                   </button>
                 )
               })}
+              <button
+                onClick={clearChatHistory}
+                disabled={clearChatDisabled}
+                className="btn-icon-hover flex h-[34px] w-[34px] flex-shrink-0 items-center justify-center rounded-xl transition-all disabled:opacity-45"
+                style={{
+                  background: 'var(--bg-muted)',
+                  border: '1px solid var(--border)',
+                  color: hasChatHistory && !busy && pendingActions.length === 0 ? '#9B4A45' : 'var(--text-muted)',
+                }}
+                title={clearChatTitle}
+                aria-label={clearChatTitle}
+              >
+                <Trash2 size={13} />
+              </button>
             </div>
 
             <div className="flex-1 overflow-y-auto flex flex-col gap-3 p-4">

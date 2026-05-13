@@ -167,6 +167,7 @@ interface WidgetDataState {
   // AI conversation history
   aiConversations: Record<string, AiConversationState>
   activeAiConversationId: string
+  clearAiConversation: (conversationId?: string) => AiConversationState
   saveAiConversation: (conversation: AiConversationState) => void
   setActiveAiConversation: (conversationId: string) => void
 }
@@ -982,6 +983,17 @@ export const useWidgetDataStore = create<WidgetDataState>()(
 
       aiConversations: {},
       activeAiConversationId: DEFAULT_AI_CONVERSATION_ID,
+      clearAiConversation: (conversationId = DEFAULT_AI_CONVERSATION_ID) => {
+        const nextConversation = createAiConversationState(conversationId)
+        set((s) => ({
+          activeAiConversationId: conversationId,
+          aiConversations: {
+            ...s.aiConversations,
+            [conversationId]: nextConversation,
+          },
+        }))
+        return nextConversation
+      },
       saveAiConversation: (conversation) => {
         set((s) => ({
           activeAiConversationId: conversation.id,

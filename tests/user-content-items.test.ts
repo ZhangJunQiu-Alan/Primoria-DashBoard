@@ -180,6 +180,51 @@ describe('user content items', () => {
       .toBe('帮我总结今天的任务安排')
   })
 
+  it('clears AI conversation history before content indexing', () => {
+    const conversation = createAiConversationState(DEFAULT_AI_CONVERSATION_ID, '2026-05-10T00:00:00.000Z')
+    conversation.messages = [
+      {
+        content: '清空前的消息',
+        createdAt: '2026-05-10T00:01:00.000Z',
+        id: 'msg-user-1',
+        role: 'user',
+      },
+    ]
+    conversation.geminiContents = [{ role: 'user', parts: [{ text: '清空前的消息' }] }]
+    conversation.toolCalls = [
+      {
+        args: {},
+        createdAt: '2026-05-10T00:01:30.000Z',
+        id: 'tool-1',
+        name: 'get_dashboard_overview',
+        result: { ok: true },
+      },
+    ]
+    conversation.pendingActions = [
+      {
+        id: 'action-1',
+        label: '准备移动任务',
+        taskIds: ['task-1'],
+        toDate: '2026-05-11',
+        type: 'moveScheduledTasks',
+        widgetId: 'schedule-1',
+      },
+    ]
+    useWidgetDataStore.setState({ aiConversations: { [conversation.id]: conversation } })
+
+    const cleared = useWidgetDataStore.getState().clearAiConversation(DEFAULT_AI_CONVERSATION_ID)
+    const items = buildUserContentItems()
+
+    expect(cleared.messages).toHaveLength(0)
+    expect(cleared.geminiContents).toHaveLength(0)
+    expect(cleared.toolCalls).toHaveLength(0)
+    expect(cleared.pendingActions).toHaveLength(0)
+    expect(useWidgetDataStore.getState().aiConversations[DEFAULT_AI_CONVERSATION_ID]).toEqual(cleared)
+    expect(items.some((item) => item.contentKey.startsWith(`ai_message:${DEFAULT_AI_CONVERSATION_ID}:`))).toBe(false)
+    expect(items.some((item) => item.contentKey.startsWith(`ai_tool_call:${DEFAULT_AI_CONVERSATION_ID}:`))).toBe(false)
+    expect(items.some((item) => item.contentKey.startsWith(`pending_action:${DEFAULT_AI_CONVERSATION_ID}:`))).toBe(false)
+  })
+
   it('sanitizes heavy or sensitive content before upload rows are built', async () => {
     useWidgetDataStore.setState({
       notesByWidget: {
