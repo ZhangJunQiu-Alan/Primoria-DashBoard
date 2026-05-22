@@ -51,14 +51,9 @@ function formatShortDate(dateStr: string) {
   return `${date.getMonth() + 1}/${date.getDate()}`
 }
 
-function getColumnHeading(dateStr: string, today: string, compact: boolean) {
-  const offset = diffDays(dateStr, today)
+function getColumnHeading(dateStr: string, compact: boolean) {
   const date = parseLocalDateKey(dateStr)
   const weekdays = ['周日', '周一', '周二', '周三', '周四', '周五', '周六']
-
-  if (offset === 0) return { title: '今天', subtitle: formatShortDate(dateStr) }
-  if (offset === 1) return { title: '明天', subtitle: formatShortDate(dateStr) }
-  if (offset === 2) return { title: '后天', subtitle: formatShortDate(dateStr) }
 
   if (compact) {
     return {
@@ -959,7 +954,7 @@ export function ScheduledTodoWidget({ widgetId }: { widgetId: string }) {
             }}
           >
             {dateColumns.map((date) => {
-              const { title, subtitle } = getColumnHeading(date, today, compactHeaders)
+              const { title, subtitle } = getColumnHeading(date, compactHeaders)
               const isTodayColumn = date === today
               const accent = isTodayColumn
                 ? 'var(--primary-dark)'
