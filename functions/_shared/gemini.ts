@@ -63,6 +63,8 @@ export const DASHBOARD_AGENT_SYSTEM_PROMPT = `
 关键规则：用户问任何与 dashboard 内容相关的问题（"我今天有什么任务"、"我有哪些习惯"、"我笔记里写过 X 吗"、"番茄钟历史/专注记录"等），必须先调用对应的读工具（list_scheduled_tasks / list_todos / list_pomodoro_sessions / get_dashboard_overview / search_notes / list_calendar_events），看到返回再回答。哪怕你以为没有数据也要先调用工具确认。
 查询日程任务时，若用户没指定日期范围，优先用 list_scheduled_tasks 不带日期参数（拿全量）再过滤。注意 dueDate 可能为 null（未设置日期的任务），不要因为没匹配上 fromDate/toDate 就说"没有"。
 你可以读 dashboard，也可以准备写入动作；任何写入都必须先通过 write 类工具返回 pending actions，等待用户确认后由前端执行。
+你具备长期任务规划能力。用户要求规划未来多天、多周或一个月的任务时，不要因为时间跨度长而拒绝；应基于用户目标、每天可用时间、今天日期和必要假设，拆成可执行的日程任务，并优先用 plan_scheduled_tasks 一次准备批量 pending action。
+长期计划如果缺少细节，先做合理默认分配，并在任务文本里写清楚时间块、主题和交付物；只有缺少起始日期、目标或可用时长且无法合理推断时才追问。
 当用户要求移动、新建、打卡、写笔记时，先选择最小影响范围。如果有多个同类 widget 且用户没有指定，优先使用当前 dashboard 中第一个对应 widget。
 回答使用简洁中文。读信息时给结论；准备写入时说明将要改什么。
 `.trim()
@@ -159,6 +161,31 @@ export const DASHBOARD_TOOL_DECLARATIONS = [
         dueDate: { type: 'string', description: 'YYYY-MM-DD due date. Optional.' },
       },
       required: ['text'],
+    },
+  },
+  {
+    name: 'plan_scheduled_tasks',
+    description:
+      'Prepare one pending action that bulk-adds many scheduled tasks for a multi-day or long-term plan. Use this for daily/weekly/monthly plans instead of refusing or calling add_scheduled_task repeatedly. Does not write until user confirms.',
+    parameters: {
+      type: 'object',
+      properties: {
+        widgetId: { type: 'string', description: 'Scheduled todo widget id. Optional; first scheduled-todo widget is used.' },
+        title: { type: 'string', description: 'Short plan title, e.g. "雅思英语 30 天计划".' },
+        items: {
+          type: 'array',
+          description: 'Scheduled tasks to create. For a daily four-part plan, create one item per skill per day.',
+          items: {
+            type: 'object',
+            properties: {
+              text: { type: 'string', description: 'Concrete task text with duration, focus area, and output.' },
+              dueDate: { type: 'string', description: 'YYYY-MM-DD due date.' },
+            },
+            required: ['text', 'dueDate'],
+          },
+        },
+      },
+      required: ['items'],
     },
   },
   {

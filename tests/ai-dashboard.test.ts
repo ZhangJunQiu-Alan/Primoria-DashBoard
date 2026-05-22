@@ -80,6 +80,39 @@ describe('dashboard AI foundations', () => {
     expect(useWidgetDataStore.getState().habitsByWidget[habitWidget!.id][0].name).toBe('每天喝 8 杯水')
   })
 
+  it('prepares and applies a bulk scheduled plan in one pending action', async () => {
+    resetStores([{ id: 'schedule-1', type: 'scheduled-todo' }])
+
+    const result = await executeDashboardTool({
+      args: {
+        title: '雅思英语 30 天计划',
+        items: [
+          { dueDate: '2026-05-14', text: '听力 60 分钟：精听 Section 1 并整理错题' },
+          { dueDate: '2026-05-14', text: '口语 60 分钟：Part 1 录音复盘' },
+          { dueDate: '2026-05-15', text: '阅读 60 分钟：完成一篇 Passage 并复盘定位词' },
+        ],
+      },
+      name: 'plan_scheduled_tasks',
+    })
+
+    expect(result.pendingActions).toHaveLength(1)
+    expect(result.pendingActions[0]).toEqual(expect.objectContaining({
+      items: expect.arrayContaining([
+        expect.objectContaining({ dueDate: '2026-05-14', text: expect.stringContaining('听力') }),
+      ]),
+      type: 'bulkAddScheduledTasks',
+      widgetId: 'schedule-1',
+    }))
+
+    applyPendingActions(result.pendingActions)
+
+    expect(useWidgetDataStore.getState().scheduledTasksByWidget['schedule-1']).toEqual([
+      expect.objectContaining({ dueDate: '2026-05-14', text: expect.stringContaining('听力') }),
+      expect.objectContaining({ dueDate: '2026-05-14', text: expect.stringContaining('口语') }),
+      expect.objectContaining({ dueDate: '2026-05-15', text: expect.stringContaining('阅读') }),
+    ])
+  })
+
   it('builds brief context from calendar, scheduled tasks, habits, and notes', () => {
     resetStores([
       { id: 'brief-1', type: 'daily-brief' },

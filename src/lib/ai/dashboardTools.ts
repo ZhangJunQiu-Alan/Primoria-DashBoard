@@ -9,6 +9,7 @@ import type {
   CalendarEvent,
   GeminiFunctionCall,
   PendingAction,
+  ScheduledTaskPlanItem,
 } from '@/lib/ai/types'
 import { addDaysToDateKey, formatLocalDateKey, parseLocalDateKey } from '@/lib/date'
 import {
@@ -27,6 +28,9 @@ interface ToolResult {
   pendingActions: PendingAction[]
   response: Record<string, unknown>
 }
+
+const MAX_BULK_SCHEDULED_TASKS = 180
+const MAX_PLAN_ITEM_TEXT_LENGTH = 240
 
 const TITLE_BY_TYPE: Record<WidgetType, string> = {
   clock: '时钟',
@@ -66,6 +70,42 @@ function getStringArray(args: Record<string, unknown>, key: string) {
   const value = args[key]
   if (!Array.isArray(value)) return []
   return value.filter((item): item is string => typeof item === 'string' && item.trim().length > 0)
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
+}
+
+function isDateKey(value: string) {
+  return /^\d{4}-\d{2}-\d{2}$/.test(value)
+}
+
+function getPlanItems(args: Record<string, unknown>): {
+  originalCount: number
+  items: ScheduledTaskPlanItem[]
+} {
+  const rawItems = args.items
+  if (!Array.isArray(rawItems)) return { originalCount: 0, items: [] }
+
+  const items = rawItems.flatMap((rawItem): ScheduledTaskPlanItem[] => {
+    if (!isRecord(rawItem)) return []
+    const rawText = rawItem.text
+    const rawDueDate = rawItem.dueDate
+    const text = typeof rawText === 'string' ? rawText.trim() : ''
+    const dueDate = typeof rawDueDate === 'string' && isDateKey(rawDueDate.trim())
+      ? rawDueDate.trim()
+      : null
+    if (!text || !dueDate) return []
+    return [{
+      dueDate,
+      text: text.slice(0, MAX_PLAN_ITEM_TEXT_LENGTH),
+    }]
+  })
+
+  return {
+    originalCount: rawItems.length,
+    items: items.slice(0, MAX_BULK_SCHEDULED_TASKS),
+  }
 }
 
 function localDateStartMs(dateKey: string | null) {
@@ -296,6 +336,47 @@ function prepareAddScheduledTask(args: Record<string, unknown>): ToolResult {
     widgetId,
   }
   return { pendingActions: [action], response: { pending: true, actions: [action] } }
+}
+
+function preparePlanScheduledTasks(args: Record<string, unknown>): ToolResult {
+  const { items, originalCount } = getPlanItems(args)
+  if (items.length === 0) {
+    return {
+      pendingActions: [],
+      response: { error: '长期计划至少需要 1 个带 YYYY-MM-DD 日期的任务。' },
+    }
+  }
+
+  const title = getString(args, 'title')
+  const widgetId = findWidget('scheduled-todo', getString(args, 'widgetId'))
+  const dates = items.map((item) => item.dueDate).filter((date): date is string => Boolean(date)).sort()
+  const range = dates.length > 0
+    ? dates[0] === dates[dates.length - 1]
+      ? `（${dates[0]}）`
+      : `（${dates[0]} 至 ${dates[dates.length - 1]}）`
+    : ''
+  const planLabel = title ? `「${title}」` : '长期任务规划'
+  const action: PendingAction = {
+    id: makeActionId('plan-scheduled'),
+    items,
+    label: widgetId
+      ? `在 ${getWidgetTitle(widgetId)} 创建${planLabel}：${items.length} 个日程任务${range}`
+      : `添加日程任务组件并创建${planLabel}：${items.length} 个日程任务${range}`,
+    title,
+    type: 'bulkAddScheduledTasks',
+    widgetId,
+  }
+
+  return {
+    pendingActions: [action],
+    response: {
+      pending: true,
+      actions: [action],
+      itemCount: items.length,
+      truncated: originalCount > items.length,
+      maxItems: MAX_BULK_SCHEDULED_TASKS,
+    },
+  }
 }
 
 function prepareToggleScheduledTask(args: Record<string, unknown>): ToolResult {
@@ -575,6 +656,8 @@ export async function executeDashboardTool(call: GeminiFunctionCall): Promise<To
       return prepareMoveScheduledTasks(args)
     case 'add_scheduled_task':
       return prepareAddScheduledTask(args)
+    case 'plan_scheduled_tasks':
+      return preparePlanScheduledTasks(args)
     case 'toggle_scheduled_task':
       return prepareToggleScheduledTask(args)
     case 'update_scheduled_task':
@@ -623,6 +706,24 @@ export function applyPendingActions(actions: PendingAction[]) {
           )?.id ?? findWidget('scheduled-todo')
       }
       if (widgetId) data.addScheduledTask(widgetId, action.text, action.dueDate)
+      continue
+    }
+
+    if (action.type === 'bulkAddScheduledTasks') {
+      let widgetId = action.widgetId
+      if (!widgetId) {
+        const before = new Set(useDashboardStore.getState().widgets.map((widget) => widget.id))
+        dashboard.addWidget('scheduled-todo')
+        widgetId =
+          useDashboardStore.getState().widgets.find(
+            (widget) => widget.type === 'scheduled-todo' && !before.has(widget.id)
+          )?.id ?? findWidget('scheduled-todo')
+      }
+      if (widgetId) {
+        for (const item of action.items) {
+          data.addScheduledTask(widgetId, item.text, item.dueDate)
+        }
+      }
       continue
     }
 

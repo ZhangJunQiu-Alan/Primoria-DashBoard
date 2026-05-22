@@ -165,6 +165,11 @@ export interface PendingActionBase {
   label: string
 }
 
+export interface ScheduledTaskPlanItem {
+  dueDate: string | null
+  text: string
+}
+
 export type PendingAction =
   | (PendingActionBase & {
       type: 'moveScheduledTasks'
@@ -177,6 +182,12 @@ export type PendingAction =
       widgetId: string | null
       text: string
       dueDate: string | null
+    })
+  | (PendingActionBase & {
+      type: 'bulkAddScheduledTasks'
+      widgetId: string | null
+      title: string | null
+      items: ScheduledTaskPlanItem[]
     })
   | (PendingActionBase & {
       type: 'toggleScheduledTask'

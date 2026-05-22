@@ -6,6 +6,7 @@ import {
   classifyRouteHeuristically,
   runGeminiAgent,
 } from '../functions/_shared/agents'
+import { DASHBOARD_TOOL_DECLARATIONS } from '../functions/_shared/gemini'
 
 const env = {
   GEMINI_API_KEY: 'gemini-key',
@@ -66,8 +67,16 @@ describe('assistant multi-agent routing', () => {
   it('classifies Chinese requests into dashboard, memory, and general routes', () => {
     expect(classifyRouteHeuristically('今天有哪些任务？').intent).toBe('dashboard_operation')
     expect(classifyRouteHeuristically('查询番茄钟计时历史记录').intent).toBe('dashboard_operation')
+    expect(classifyRouteHeuristically('帮我规划接下来一个月每天 4 小时英语学习任务').intent).toBe('dashboard_operation')
     expect(classifyRouteHeuristically('你记得我的工作习惯吗？').intent).toBe('memory_question')
     expect(classifyRouteHeuristically('解释一下什么是时间盒。').intent).toBe('general_answer')
+  })
+
+  it('exposes a bulk planning tool for long-term scheduled tasks', () => {
+    const tool = DASHBOARD_TOOL_DECLARATIONS.find((item) => item.name === 'plan_scheduled_tasks')
+
+    expect(tool?.description).toContain('multi-day')
+    expect(JSON.stringify(tool)).toContain('items')
   })
 
   it('routes dashboard operations to the only agent allowed to receive tools', async () => {
@@ -89,6 +98,8 @@ describe('assistant multi-agent routing', () => {
           }))
         }
         expect(serialized).toContain('必须先调用对应的读工具')
+        expect(serialized).toContain('长期任务规划能力')
+        expect(serialized).toContain('plan_scheduled_tasks')
         return jsonResponse({
           candidates: [{
             content: {

@@ -114,6 +114,7 @@ function makeFunctionResponsePart(
 }
 
 function summarizePendingActions(actions: PendingAction[]) {
+  if (actions.length === 1) return `我准备执行 1 项变更：${actions[0].label}。请确认后再写入。`
   return `我准备执行 ${actions.length} 项变更，请确认后再写入。`
 }
 
