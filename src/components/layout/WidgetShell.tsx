@@ -117,7 +117,6 @@ export function WidgetShell({ type, widgetId, onRemove, showHeader }: WidgetShel
   const isClock = type === 'clock'
   const isFocusJourney = type === 'focus-journey'
   const isScheduledTodo = type === 'scheduled-todo'
-  const isReadingList = type === 'reading-list'
   const isTransparent = isClock || isFocusJourney || isScheduledTodo
   const showStandardHeader = showHeader && !isScheduledTodo
   const headerOnDark = isFocusJourney
@@ -176,68 +175,6 @@ export function WidgetShell({ type, widgetId, onRemove, showHeader }: WidgetShel
         )}
         <div className="h-full overflow-hidden">
           <ScheduledTodoWidget widgetId={widgetId} />
-        </div>
-      </div>
-    )
-  }
-
-  if (isReadingList) {
-    return (
-      <div className="group relative h-full">
-        {showHeader && (
-          <>
-            <div className="absolute left-3 top-3 z-20 flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
-              {editing && (
-                <input
-                  ref={inputRef}
-                  value={draft}
-                  onChange={(e) => setDraft(e.target.value)}
-                  onBlur={commitEdit}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') commitEdit()
-                    if (e.key === 'Escape') setEditing(false)
-                  }}
-                  onMouseDown={(e) => e.stopPropagation()}
-                  className="outline-none"
-                  style={{
-                    width: '104px',
-                    border: '1px solid rgba(221,211,195,0.75)',
-                    borderRadius: '8px',
-                    background: 'rgba(255,255,255,0.92)',
-                    color: 'var(--text)',
-                    fontSize: '11px',
-                    padding: '3px 6px',
-                  }}
-                />
-              )}
-              <button
-                onMouseDown={(e) => e.stopPropagation()}
-                onClick={startEdit}
-                className="btn-icon-hover rounded-lg p-1"
-                style={{ color: 'var(--text-muted)', background: 'rgba(255,255,255,0.82)' }}
-                title="重命名"
-              >
-                <Pencil size={11} />
-              </button>
-              <button
-                onMouseDown={(e) => e.stopPropagation()}
-                onClick={onRemove}
-                className="btn-icon-hover rounded-lg p-1"
-                style={{ color: 'var(--text-muted)', background: 'rgba(255,255,255,0.82)' }}
-                title="移除组件"
-              >
-                <X size={12} />
-              </button>
-            </div>
-          </>
-        )}
-        {!showHeader && (
-          <div className="drag-handle absolute inset-0 z-10 cursor-grab active:cursor-grabbing" />
-        )}
-        <div className="h-full overflow-hidden">
-          <Suspense fallback={<WidgetLoadingFallback />}>
-            <LazyReadingListWidget widgetId={widgetId} />
-          </Suspense>
         </div>
       </div>
     )

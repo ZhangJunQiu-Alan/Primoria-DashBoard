@@ -200,53 +200,28 @@ const today = () => formatLocalDateKey()
 const makeId = () => `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
 const makeLinedNotePageId = () => `lined-note-page-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
 
-export const DEFAULT_READING_LIST_ITEMS: ReadingListItem[] = [
-  {
-    id: 'reading-seed-para',
-    title: 'How to build a second brain with PARA',
-    source: 'Notion Blog',
-    tag: '学习方法',
-    status: 'to-read',
-    createdAt: 1,
-    updatedAt: 1,
-  },
-  {
-    id: 'reading-seed-ai-tools',
-    title: 'The best AI tools I use every day as a designer',
-    source: 'Y Combinator',
-    tag: 'AI 工具',
-    status: 'to-read',
-    createdAt: 2,
-    updatedAt: 2,
-  },
-  {
-    id: 'reading-seed-agent',
-    title: '从提示工程到智能体：AI 应用的下一站',
-    source: '少数派',
-    tag: 'AI',
-    status: 'to-read',
-    createdAt: 3,
-    updatedAt: 3,
-  },
-  {
-    id: 'reading-seed-calm-ux',
-    title: 'Designing with Calm: 7 Principles for Focused UX',
-    source: 'UX Collective',
-    tag: '设计',
-    status: 'to-read',
-    createdAt: 4,
-    updatedAt: 4,
-  },
-  {
-    id: 'reading-seed-fragmented-knowledge',
-    title: '高效阅读：如何在碎片化信息中构建知识体系',
-    source: '得到',
-    tag: '学习方法',
-    status: 'to-read',
-    createdAt: 5,
-    updatedAt: 5,
-  },
-]
+export const DEFAULT_READING_LIST_ITEMS: ReadingListItem[] = []
+
+const READING_LIST_SEED_ITEM_IDS = new Set([
+  'reading-seed-para',
+  'reading-seed-ai-tools',
+  'reading-seed-agent',
+  'reading-seed-calm-ux',
+  'reading-seed-fragmented-knowledge',
+])
+
+export function normalizeReadingListItems(items: ReadingListItem[] = []): ReadingListItem[] {
+  return items.filter((item) => !READING_LIST_SEED_ITEM_IDS.has(item.id))
+}
+
+export function normalizeReadingListsByWidget(
+  map: Record<string, ReadingListItem[]> | undefined
+): Record<string, ReadingListItem[]> {
+  if (!map) return {}
+  return Object.fromEntries(
+    Object.entries(map).map(([widgetId, items]) => [widgetId, normalizeReadingListItems(items)])
+  )
+}
 
 function shortText(value: string) {
   return summarizeText(value, 72)
@@ -324,7 +299,7 @@ function getReadingListItems(
   map: Record<string, ReadingListItem[]>,
   widgetId: string
 ) {
-  return map[widgetId] ?? DEFAULT_READING_LIST_ITEMS
+  return normalizeReadingListItems(map[widgetId] ?? DEFAULT_READING_LIST_ITEMS)
 }
 
 function updateReadingList(
@@ -1196,6 +1171,24 @@ export const useWidgetDataStore = create<WidgetDataState>()(
         set({ activeAiConversationId: conversationId })
       },
     }),
-    { name: WIDGET_DATA_STORAGE_KEY }
+    {
+      name: WIDGET_DATA_STORAGE_KEY,
+      version: 1,
+      migrate: (persisted) => {
+        const state = persisted as Partial<WidgetDataState>
+        return {
+          ...state,
+          readingListsByWidget: normalizeReadingListsByWidget(state.readingListsByWidget),
+        }
+      },
+      merge: (persisted, current) => {
+        const state = persisted as Partial<WidgetDataState> | null
+        return {
+          ...current,
+          ...(state ?? {}),
+          readingListsByWidget: normalizeReadingListsByWidget(state?.readingListsByWidget),
+        }
+      },
+    }
   )
 )

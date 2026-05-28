@@ -10,7 +10,7 @@ import {
   Trash2,
 } from 'lucide-react'
 import {
-  DEFAULT_READING_LIST_ITEMS,
+  normalizeReadingListItems,
   useWidgetDataStore,
   type ReadingListItem,
   type ReadingListStatus,
@@ -105,7 +105,7 @@ export function ReadingListWidget({ widgetId }: ReadingListWidgetProps) {
   const addReadingListItem = useWidgetDataStore((s) => s.addReadingListItem)
   const updateReadingListItemStatus = useWidgetDataStore((s) => s.updateReadingListItemStatus)
   const removeReadingListItem = useWidgetDataStore((s) => s.removeReadingListItem)
-  const items = storedItems ?? DEFAULT_READING_LIST_ITEMS
+  const items = useMemo(() => normalizeReadingListItems(storedItems ?? []), [storedItems])
 
   const [activeStatus, setActiveStatus] = useState<ReadingListStatus>('to-read')
   const [adding, setAdding] = useState(false)
@@ -194,9 +194,22 @@ export function ReadingListWidget({ widgetId }: ReadingListWidgetProps) {
 
   return (
     <section className="reading-list-widget" aria-label="阅读清单">
-      <header className="reading-list-header">
-        <h2 className="reading-list-title drag-handle">READING LIST / 阅读清单</h2>
-        <div className="reading-list-header-actions">
+      <div className="reading-list-toolbar">
+        <div className="reading-list-tabs" role="tablist" aria-label="阅读状态">
+          {STATUS_TABS.map((tab) => (
+            <button
+              key={tab.value}
+              className={`reading-list-tab${activeStatus === tab.value ? ' is-active' : ''}`}
+              onClick={() => setActiveStatus(tab.value)}
+              role="tab"
+              aria-selected={activeStatus === tab.value}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+
+        <div className="reading-list-actions">
           {searchOpen && (
             <input
               value={query}
@@ -213,6 +226,12 @@ export function ReadingListWidget({ widgetId }: ReadingListWidgetProps) {
               autoFocus
             />
           )}
+          <button
+            className={`reading-list-add-button${adding ? ' is-active' : ''}`}
+            onClick={() => setAdding((open) => !open)}
+          >
+            添加
+          </button>
           <button
             className="reading-list-icon-button"
             onClick={() => setSearchOpen((open) => !open)}
@@ -247,28 +266,6 @@ export function ReadingListWidget({ widgetId }: ReadingListWidgetProps) {
             )}
           </div>
         </div>
-      </header>
-
-      <div className="reading-list-toolbar">
-        <div className="reading-list-tabs" role="tablist" aria-label="阅读状态">
-          {STATUS_TABS.map((tab) => (
-            <button
-              key={tab.value}
-              className={`reading-list-tab${activeStatus === tab.value ? ' is-active' : ''}`}
-              onClick={() => setActiveStatus(tab.value)}
-              role="tab"
-              aria-selected={activeStatus === tab.value}
-            >
-              {tab.label}
-            </button>
-          ))}
-        </div>
-        <button
-          className={`reading-list-add-button${adding ? ' is-active' : ''}`}
-          onClick={() => setAdding((open) => !open)}
-        >
-          添加
-        </button>
       </div>
 
       <div className="reading-list-body">

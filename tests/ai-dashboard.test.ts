@@ -7,6 +7,7 @@ import { usePomodoroJourneyStore } from '@/store/pomodoroJourneyStore'
 import {
   createLinedNotesDocument,
   normalizeLinedNotesDocument,
+  normalizeReadingListItems,
   useWidgetDataStore,
 } from '@/store/widgetDataStore'
 import type { PendingAction } from '@/lib/ai/types'
@@ -194,6 +195,32 @@ describe('dashboard AI foundations', () => {
 
     expect(useWidgetDataStore.getState().readingListsByWidget['reading-1'][0].status).toBe('reading')
     expect(useWidgetDataStore.getState().readingListsByWidget['other-widget']).toBeUndefined()
+  })
+
+  it('starts reading lists empty and removes legacy seed rows', () => {
+    expect(normalizeReadingListItems()).toEqual([])
+    expect(normalizeReadingListItems([
+      {
+        id: 'reading-seed-ai-tools',
+        title: 'The best AI tools I use every day as a designer',
+        source: 'Y Combinator',
+        tag: 'AI 工具',
+        status: 'to-read',
+        createdAt: 2,
+        updatedAt: 2,
+      },
+      {
+        id: 'custom-reading',
+        title: '用户自己的条目',
+        source: '本地',
+        tag: '学习',
+        status: 'to-read',
+        createdAt: 10,
+        updatedAt: 10,
+      },
+    ])).toEqual([
+      expect.objectContaining({ id: 'custom-reading', title: '用户自己的条目' }),
+    ])
   })
 
   it('lets the dashboard AI read pomodoro timer history by local date range', async () => {

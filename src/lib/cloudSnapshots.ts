@@ -14,6 +14,7 @@ import {
   type ScheduledTask,
   type TodoItem,
   normalizeLinedNotesDocument,
+  normalizeReadingListsByWidget,
 } from '@/store/widgetDataStore'
 import type { CalendarEvent } from '@/lib/ai/types'
 
@@ -105,7 +106,7 @@ export function getWidgetDataSnapshot(): WidgetDataSnapshot {
     notesByWidget,
     pomodoro,
     quickLinks,
-    readingListsByWidget,
+    readingListsByWidget: normalizeReadingListsByWidget(readingListsByWidget),
     scheduledTasksByWidget,
     todosByWidget,
     aiConversations,
@@ -130,7 +131,7 @@ export function applyWidgetDataSnapshot(snapshot: WidgetDataSnapshot) {
     calendarEventsByDate: cloneJson(snapshot.calendarEventsByDate ?? {}),
     notesByWidget: cloneJson(snapshot.notesByWidget ?? {}),
     linedNotesByWidget: cloneJson(normalizedLinedNotes),
-    readingListsByWidget: cloneJson(snapshot.readingListsByWidget ?? {}),
+    readingListsByWidget: cloneJson(normalizeReadingListsByWidget(snapshot.readingListsByWidget)),
     scheduledTasksByWidget: cloneJson(snapshot.scheduledTasksByWidget ?? {}),
     pomodoro: cloneJson(snapshot.pomodoro ?? {
       totalSessions: 0,

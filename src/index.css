@@ -235,13 +235,9 @@ body::before {
   min-height: 0;
   flex-direction: column;
   overflow: hidden;
-  color: #2f2a25;
-  background:
-    radial-gradient(ellipse 72% 54% at 24% 16%, rgba(255, 255, 255, 0.7), transparent 62%),
-    linear-gradient(180deg, rgba(255, 252, 248, 0.98), rgba(254, 249, 243, 0.94));
-  border: 1px solid rgba(221, 211, 195, 0.88);
-  border-radius: var(--r-lg);
-  box-shadow: 0 2px 14px rgba(90, 70, 50, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.72);
+  gap: 8px;
+  color: var(--text);
+  background: transparent;
 }
 
 .reading-list-header {
@@ -278,27 +274,29 @@ body::before {
 }
 
 .reading-list-header-actions,
+.reading-list-actions,
 .reading-list-row-tools,
 .reading-list-form-actions {
   display: flex;
   align-items: center;
 }
 
-.reading-list-header-actions {
+.reading-list-header-actions,
+.reading-list-actions {
   flex-shrink: 0;
-  gap: 9px;
+  gap: 6px;
 }
 
 .reading-list-icon-button {
   display: inline-flex;
-  width: 34px;
-  height: 34px;
+  width: 30px;
+  height: 30px;
   align-items: center;
   justify-content: center;
-  border: 0;
-  border-radius: 999px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
   color: #665c53;
-  background: transparent;
+  background: var(--bg-card);
   cursor: pointer;
   transition: background 0.15s ease, color 0.15s ease;
 }
@@ -309,15 +307,15 @@ body::before {
 }
 
 .reading-list-search-input {
-  width: 150px;
-  height: 34px;
-  padding: 0 12px;
+  width: 112px;
+  height: 30px;
+  padding: 0 10px;
   border: 1px solid rgba(221, 211, 195, 0.86);
-  border-radius: 999px;
+  border-radius: 10px;
   outline: none;
   color: var(--text);
-  background: rgba(255, 255, 255, 0.62);
-  font-size: 13px;
+  background: var(--bg-card);
+  font-size: 12px;
 }
 
 .reading-list-menu-anchor {
@@ -366,16 +364,15 @@ body::before {
   flex-shrink: 0;
   align-items: center;
   justify-content: space-between;
-  gap: 14px;
-  padding: 18px 24px 16px;
+  gap: 8px;
+  padding: 0;
 }
 
 .reading-list-tabs {
   display: flex;
   min-width: 0;
   flex: 1;
-  flex-wrap: wrap;
-  gap: 8px;
+  gap: 6px;
 }
 
 .reading-list-tab,
@@ -389,13 +386,13 @@ body::before {
 }
 
 .reading-list-tab {
-  min-width: 104px;
-  height: 42px;
-  padding: 0 22px;
-  border-radius: 999px;
+  min-width: 0;
+  height: 30px;
+  padding: 0 11px;
+  border-radius: 10px;
   color: #4d453e;
   background: rgba(237, 231, 218, 0.64);
-  font-size: 16px;
+  font-size: 12px;
   font-weight: 500;
   line-height: 1;
 }
@@ -408,15 +405,15 @@ body::before {
 
 .reading-list-add-button {
   flex-shrink: 0;
-  min-width: 86px;
-  height: 42px;
-  padding: 0 24px;
+  min-width: 50px;
+  height: 30px;
+  padding: 0 10px;
   border-color: rgba(213, 198, 181, 0.95);
-  border-radius: 13px;
+  border-radius: 10px;
   color: var(--primary-dark);
-  background: rgba(255, 252, 248, 0.58);
-  font-size: 17px;
-  font-weight: 700;
+  background: var(--bg-card);
+  font-size: 12px;
+  font-weight: 600;
 }
 
 .reading-list-add-button.is-active,
@@ -435,22 +432,22 @@ body::before {
   flex: 1;
   flex-direction: column;
   gap: 8px;
-  padding: 0 24px 16px;
+  padding: 0;
 }
 
 .reading-list-form,
 .reading-list-table {
-  border: 1px solid rgba(221, 211, 195, 0.86);
-  border-radius: 14px;
-  background: rgba(255, 252, 248, 0.54);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--bg-muted);
 }
 
 .reading-list-form {
   display: grid;
   flex-shrink: 0;
-  grid-template-columns: 70px minmax(0, 1fr);
-  row-gap: 11px;
-  padding: 18px 26px 16px;
+  grid-template-columns: 42px minmax(0, 1fr);
+  row-gap: 8px;
+  padding: 10px;
 }
 
 .reading-list-form label {
@@ -460,21 +457,21 @@ body::before {
 .reading-list-form label > span {
   align-self: center;
   color: var(--text);
-  font-size: 14px;
-  font-weight: 700;
+  font-size: 12px;
+  font-weight: 600;
 }
 
 .reading-list-form input {
   width: 100%;
-  height: 36px;
+  height: 30px;
   min-width: 0;
-  padding: 0 14px;
+  padding: 0 10px;
   border: 1px solid rgba(221, 211, 195, 0.88);
   border-radius: 8px;
   outline: none;
   color: var(--text);
-  background: rgba(255, 255, 255, 0.48);
-  font-size: 13px;
+  background: var(--bg-card);
+  font-size: 12px;
 }
 
 .reading-list-form input::placeholder {
@@ -507,17 +504,16 @@ body::before {
 .reading-list-form-actions {
   grid-column: 2;
   justify-content: flex-end;
-  gap: 12px;
-  padding-top: 4px;
+  gap: 8px;
 }
 
 .reading-list-secondary-button,
 .reading-list-primary-button {
-  min-width: 76px;
-  height: 34px;
-  border-radius: 13px;
-  font-size: 14px;
-  font-weight: 700;
+  min-width: 58px;
+  height: 30px;
+  border-radius: 10px;
+  font-size: 12px;
+  font-weight: 600;
 }
 
 .reading-list-secondary-button {
@@ -540,11 +536,11 @@ body::before {
 
 .reading-list-row {
   display: grid;
-  grid-template-columns: 54px minmax(0, 1fr) auto;
-  min-height: 76px;
+  grid-template-columns: 34px minmax(0, 1fr) auto;
+  min-height: 54px;
   align-items: center;
   border-bottom: 1px solid rgba(221, 211, 195, 0.76);
-  padding: 10px 24px 10px 18px;
+  padding: 8px 10px;
 }
 
 .reading-list-row:last-child {
@@ -557,8 +553,8 @@ body::before {
 
 .reading-list-checkbox {
   display: inline-flex;
-  width: 31px;
-  height: 31px;
+  width: 24px;
+  height: 24px;
   align-items: center;
   justify-content: center;
   border: 1.5px solid #bcae9f;
@@ -586,28 +582,28 @@ body::before {
 
 .reading-list-row-title {
   color: #2a2622;
-  font-size: 18px;
+  font-size: 13px;
   font-weight: 600;
   line-height: 1.28;
 }
 
 .reading-list-row-source {
-  margin-top: 4px;
+  margin-top: 3px;
   color: #887c73;
-  font-size: 15px;
+  font-size: 11px;
   line-height: 1.25;
 }
 
 .reading-list-row-tools {
-  gap: 9px;
+  gap: 6px;
   justify-content: flex-end;
-  padding-left: 18px;
+  padding-left: 8px;
 }
 
 .reading-list-row-action {
   display: inline-flex;
-  width: 30px;
-  height: 30px;
+  width: 24px;
+  height: 24px;
   align-items: center;
   justify-content: center;
   border: 1px solid rgba(221, 211, 195, 0.82);
@@ -634,17 +630,17 @@ body::before {
 
 .reading-list-tag {
   display: inline-flex;
-  max-width: 136px;
-  min-height: 34px;
+  max-width: 92px;
+  min-height: 24px;
   align-items: center;
   justify-content: center;
   overflow: hidden;
-  padding: 5px 14px;
+  padding: 3px 8px;
   border-radius: 8px;
   color: var(--primary-dark);
   background: rgba(237, 239, 231, 0.88);
-  font-size: 15px;
-  font-weight: 700;
+  font-size: 11px;
+  font-weight: 600;
   line-height: 1;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -652,29 +648,29 @@ body::before {
 
 .reading-list-saved-toast {
   position: absolute;
-  top: -4px;
+  top: 2px;
   left: 50%;
   z-index: 12;
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  padding: 8px 16px;
+  padding: 7px 12px;
   border-radius: 8px;
   color: var(--primary-dark);
   background: rgba(237, 239, 231, 0.96);
   box-shadow: 0 8px 20px rgba(90, 70, 50, 0.12);
-  font-size: 15px;
-  font-weight: 700;
+  font-size: 12px;
+  font-weight: 600;
   transform: translate(-50%, -50%);
 }
 
 .reading-list-empty {
   display: flex;
-  min-height: 120px;
+  min-height: 96px;
   align-items: center;
   justify-content: center;
   color: var(--text-muted);
-  font-size: 14px;
+  font-size: 12px;
   text-align: center;
 }
 
