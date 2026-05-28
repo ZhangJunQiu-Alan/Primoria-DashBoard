@@ -4,17 +4,23 @@ import {
   Check,
   CheckCircle2,
   ChevronDown,
+  Copy,
+  ExternalLink,
   MoreHorizontal,
+  Pencil,
   RotateCcw,
   Search,
   Trash2,
 } from 'lucide-react'
 import {
+  getReadingListUrlDomain,
   normalizeReadingListItems,
+  normalizeReadingListUrl,
   useWidgetDataStore,
   type ReadingListItem,
   type ReadingListStatus,
 } from '@/store/widgetDataStore'
+import { summarizeText, trackBehaviorEvent } from '@/lib/behaviorEvents'
 
 interface ReadingListWidgetProps {
   widgetId: string
@@ -41,23 +47,30 @@ function getRowActionLabel(status: ReadingListStatus) {
 }
 
 function getItemSearchText(item: ReadingListItem) {
-  return `${item.title} ${item.source} ${item.tag}`.toLowerCase()
+  const domain = getReadingListUrlDomain(item.source) ?? ''
+  return `${item.title} ${item.source} ${domain} ${item.tag}`.toLowerCase()
 }
 
 function ReadingListRow({
   item,
+  onCopy,
+  onEdit,
   onRemove,
   onStatusChange,
 }: {
   item: ReadingListItem
+  onCopy: (item: ReadingListItem) => void
+  onEdit: (item: ReadingListItem) => void
   onRemove: (id: string) => void
   onStatusChange: (id: string, status: ReadingListStatus) => void
 }) {
   const rowActionStatus = getNextStatus(item.status)
   const RowIcon = item.status === 'done' ? RotateCcw : item.status === 'reading' ? Check : BookOpen
+  const normalizedUrl = normalizeReadingListUrl(item.source)
+  const sourceLabel = normalizedUrl ? getReadingListUrlDomain(normalizedUrl) ?? normalizedUrl : '链接待补充'
 
   return (
-    <div className="reading-list-row">
+    <div className="reading-list-row" role="listitem">
       <button
         className={`reading-list-checkbox${item.status === 'done' ? ' is-checked' : ''}`}
         onClick={() => onStatusChange(item.id, item.status === 'done' ? 'to-read' : 'done')}
@@ -67,12 +80,38 @@ function ReadingListRow({
       </button>
 
       <div className="reading-list-row-main">
-        <div className="reading-list-row-title" title={item.title}>
-          {item.title}
-        </div>
-        <div className="reading-list-row-source" title={item.source}>
-          {item.source}
-        </div>
+        {normalizedUrl ? (
+          <>
+            <a
+              className="reading-list-row-title reading-list-link"
+              href={normalizedUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              title={item.title}
+            >
+              <span>{item.title}</span>
+              <ExternalLink size={11} />
+            </a>
+            <a
+              className="reading-list-row-source reading-list-link"
+              href={normalizedUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              title={normalizedUrl}
+            >
+              {sourceLabel}
+            </a>
+          </>
+        ) : (
+          <>
+            <div className="reading-list-row-title is-unlinked" title={item.title}>
+              {item.title}
+            </div>
+            <div className="reading-list-row-source is-invalid" title={item.source}>
+              {sourceLabel}
+            </div>
+          </>
+        )}
       </div>
 
       <div className="reading-list-row-tools">
@@ -83,6 +122,23 @@ function ReadingListRow({
           aria-label={getRowActionLabel(item.status)}
         >
           <RowIcon size={15} />
+        </button>
+        <button
+          className="reading-list-row-action"
+          onClick={() => onEdit(item)}
+          title="编辑"
+          aria-label="编辑"
+        >
+          <Pencil size={14} />
+        </button>
+        <button
+          className="reading-list-row-action"
+          onClick={() => onCopy(item)}
+          disabled={!normalizedUrl}
+          title={normalizedUrl ? '复制链接' : '链接待补充'}
+          aria-label={normalizedUrl ? '复制链接' : '链接待补充'}
+        >
+          <Copy size={14} />
         </button>
         <button
           className="reading-list-row-action danger"
@@ -103,34 +159,43 @@ function ReadingListRow({
 export function ReadingListWidget({ widgetId }: ReadingListWidgetProps) {
   const storedItems = useWidgetDataStore((s) => s.readingListsByWidget[widgetId])
   const addReadingListItem = useWidgetDataStore((s) => s.addReadingListItem)
+  const updateReadingListItem = useWidgetDataStore((s) => s.updateReadingListItem)
   const updateReadingListItemStatus = useWidgetDataStore((s) => s.updateReadingListItemStatus)
   const removeReadingListItem = useWidgetDataStore((s) => s.removeReadingListItem)
   const items = useMemo(() => normalizeReadingListItems(storedItems ?? []), [storedItems])
 
   const [activeStatus, setActiveStatus] = useState<ReadingListStatus>('to-read')
+  const [activeTag, setActiveTag] = useState('all')
   const [adding, setAdding] = useState(false)
+  const [editingId, setEditingId] = useState<string | null>(null)
   const [query, setQuery] = useState('')
   const [searchOpen, setSearchOpen] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
-  const [savedVisible, setSavedVisible] = useState(false)
+  const [notice, setNotice] = useState('')
+  const [formError, setFormError] = useState('')
   const [form, setForm] = useState({ source: '', tag: '', title: '' })
   const titleInputRef = useRef<HTMLInputElement>(null)
   const menuRef = useRef<HTMLDivElement>(null)
   const saveTimerRef = useRef<number | null>(null)
 
-  const tags = useMemo(() => {
+  const formTags = useMemo(() => {
     const unique = new Set([...COMMON_TAGS, ...items.map((item) => item.tag).filter(Boolean)])
     return [...unique]
+  }, [items])
+
+  const itemTags = useMemo(() => {
+    return [...new Set(items.map((item) => item.tag).filter(Boolean))].sort((a, b) => a.localeCompare(b))
   }, [items])
 
   const visibleItems = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase()
     return items.filter((item) => {
       if (item.status !== activeStatus) return false
+      if (activeTag !== 'all' && item.tag !== activeTag) return false
       if (!normalizedQuery) return true
       return getItemSearchText(item).includes(normalizedQuery)
     })
-  }, [activeStatus, items, query])
+  }, [activeStatus, activeTag, items, query])
 
   const counts = useMemo(() => {
     return STATUS_TABS.reduce<Record<ReadingListStatus, number>>((acc, tab) => {
@@ -163,7 +228,33 @@ export function ReadingListWidget({ widgetId }: ReadingListWidgetProps) {
 
   function resetForm() {
     setForm({ source: '', tag: '', title: '' })
+    setEditingId(null)
+    setFormError('')
     setAdding(false)
+  }
+
+  function showNotice(message: string) {
+    setNotice(message)
+    if (saveTimerRef.current) window.clearTimeout(saveTimerRef.current)
+    saveTimerRef.current = window.setTimeout(() => setNotice(''), 1800)
+  }
+
+  function startEdit(item: ReadingListItem) {
+    setForm({ source: item.source, tag: item.tag, title: item.title })
+    setEditingId(item.id)
+    setAdding(true)
+    setFormError('')
+  }
+
+  function toggleAddForm() {
+    if (adding) {
+      resetForm()
+      return
+    }
+    setForm({ source: '', tag: '', title: '' })
+    setEditingId(null)
+    setFormError('')
+    setAdding(true)
   }
 
   function handleSave() {
@@ -172,17 +263,53 @@ export function ReadingListWidget({ widgetId }: ReadingListWidgetProps) {
       titleInputRef.current?.focus()
       return
     }
+    const normalizedUrl = normalizeReadingListUrl(form.source)
+    if (!normalizedUrl) {
+      setFormError('请输入有效链接，例如 example.com 或 https://example.com')
+      return
+    }
 
-    addReadingListItem(widgetId, {
-      source: form.source,
-      status: activeStatus,
-      tag: form.tag,
-      title,
-    })
+    if (editingId) {
+      updateReadingListItem(widgetId, editingId, {
+        source: normalizedUrl,
+        tag: form.tag,
+        title,
+      })
+    } else {
+      addReadingListItem(widgetId, {
+        source: normalizedUrl,
+        status: activeStatus,
+        tag: form.tag,
+        title,
+      })
+    }
     resetForm()
-    setSavedVisible(true)
-    if (saveTimerRef.current) window.clearTimeout(saveTimerRef.current)
-    saveTimerRef.current = window.setTimeout(() => setSavedVisible(false), 1800)
+    showNotice(editingId ? '已更新' : '已添加')
+  }
+
+  async function copyItemLink(item: ReadingListItem) {
+    const normalizedUrl = normalizeReadingListUrl(item.source)
+    if (!normalizedUrl) return
+    try {
+      await navigator.clipboard.writeText(normalizedUrl)
+    } catch {
+      showNotice('复制失败')
+      return
+    }
+    showNotice('链接已复制')
+    trackBehaviorEvent({
+      eventName: 'reading_list.item_link_copied',
+      metadata: {
+        sourceDomain: getReadingListUrlDomain(normalizedUrl),
+        titleSummary: summarizeText(item.title, 72),
+      },
+      objectId: item.id,
+      objectType: 'reading_list_item',
+      summary: `复制阅读链接：${summarizeText(item.title, 72)}`,
+      surface: 'widget',
+      widgetId,
+      widgetType: 'reading-list',
+    })
   }
 
   function clearDoneItems() {
@@ -228,7 +355,7 @@ export function ReadingListWidget({ widgetId }: ReadingListWidgetProps) {
           )}
           <button
             className={`reading-list-add-button${adding ? ' is-active' : ''}`}
-            onClick={() => setAdding((open) => !open)}
+            onClick={toggleAddForm}
           >
             添加
           </button>
@@ -256,11 +383,12 @@ export function ReadingListWidget({ widgetId }: ReadingListWidgetProps) {
                 <button
                   onClick={() => {
                     setQuery('')
+                    setActiveTag('all')
                     setSearchOpen(false)
                     setMenuOpen(false)
                   }}
                 >
-                  重置搜索
+                  重置筛选
                 </button>
               </div>
             )}
@@ -269,10 +397,28 @@ export function ReadingListWidget({ widgetId }: ReadingListWidgetProps) {
       </div>
 
       <div className="reading-list-body">
-        {savedVisible && (
+        {notice && (
           <div className="reading-list-saved-toast" role="status">
             <CheckCircle2 size={17} />
-            已添加
+            {notice}
+          </div>
+        )}
+
+        {itemTags.length > 0 && (
+          <div className="reading-list-filter-row">
+            <select
+              className="reading-list-tag-filter"
+              value={activeTag}
+              onChange={(event) => setActiveTag(event.target.value)}
+              aria-label="按标签筛选阅读清单"
+            >
+              <option value="all">全部标签</option>
+              {itemTags.map((tag) => (
+                <option key={tag} value={tag}>
+                  {tag}
+                </option>
+              ))}
+            </select>
           </div>
         )}
 
@@ -292,15 +438,19 @@ export function ReadingListWidget({ widgetId }: ReadingListWidgetProps) {
               />
             </label>
             <label>
-              <span>来源</span>
+              <span>链接</span>
               <input
                 value={form.source}
-                onChange={(event) => setForm((current) => ({ ...current, source: event.target.value }))}
+                onChange={(event) => {
+                  setForm((current) => ({ ...current, source: event.target.value }))
+                  setFormError('')
+                }}
                 onKeyDown={(event) => {
                   if (event.key === 'Enter') handleSave()
                   if (event.key === 'Escape') resetForm()
                 }}
-                placeholder="输入来源，如网站、博客、作者或出版方"
+                placeholder="example.com 或 https://example.com"
+                inputMode="url"
               />
             </label>
             <label>
@@ -318,19 +468,25 @@ export function ReadingListWidget({ widgetId }: ReadingListWidgetProps) {
                 />
                 <ChevronDown size={16} />
                 <datalist id={`reading-tags-${widgetId}`}>
-                  {tags.map((tag) => (
+                  {formTags.map((tag) => (
                     <option key={tag} value={tag} />
                   ))}
                 </datalist>
               </div>
             </label>
 
+            {formError && (
+              <p className="reading-list-form-error" role="alert">
+                {formError}
+              </p>
+            )}
+
             <div className="reading-list-form-actions">
               <button className="reading-list-secondary-button" onClick={resetForm}>
                 取消
               </button>
               <button className="reading-list-primary-button" onClick={handleSave}>
-                保存
+                {editingId ? '更新' : '保存'}
               </button>
             </div>
           </div>
@@ -341,6 +497,8 @@ export function ReadingListWidget({ widgetId }: ReadingListWidgetProps) {
             <ReadingListRow
               key={item.id}
               item={item}
+              onCopy={(entry) => void copyItemLink(entry)}
+              onEdit={startEdit}
               onRemove={(id) => removeReadingListItem(widgetId, id)}
               onStatusChange={(id, status) => updateReadingListItemStatus(widgetId, id, status)}
             />

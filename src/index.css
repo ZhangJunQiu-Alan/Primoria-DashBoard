@@ -287,6 +287,10 @@ body::before {
   gap: 6px;
 }
 
+.reading-list-actions {
+  justify-content: flex-end;
+}
+
 .reading-list-icon-button {
   display: inline-flex;
   width: 30px;
@@ -435,6 +439,22 @@ body::before {
   padding: 0;
 }
 
+.reading-list-filter-row {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.reading-list-tag-filter {
+  width: min(156px, 100%);
+  height: 28px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  outline: none;
+  color: var(--text-sub);
+  background: var(--bg-card);
+  font-size: 12px;
+}
+
 .reading-list-form,
 .reading-list-table {
   border: 1px solid var(--border);
@@ -505,6 +525,14 @@ body::before {
   grid-column: 2;
   justify-content: flex-end;
   gap: 8px;
+}
+
+.reading-list-form-error {
+  grid-column: 2;
+  margin: -2px 0 0;
+  color: #a76861;
+  font-size: 11px;
+  line-height: 1.35;
 }
 
 .reading-list-secondary-button,
@@ -619,13 +647,60 @@ body::before {
   color: #a76861;
 }
 
+.reading-list-row-action:disabled {
+  cursor: not-allowed;
+  color: var(--text-muted);
+}
+
 .reading-list-row:hover .reading-list-row-action,
 .reading-list-row:focus-within .reading-list-row-action {
   opacity: 1;
 }
 
+.reading-list-row:hover .reading-list-row-action:disabled,
+.reading-list-row:focus-within .reading-list-row-action:disabled {
+  opacity: 0.35;
+}
+
 .reading-list-row-action:hover {
   background: var(--bg-hover);
+}
+
+.reading-list-row-action:disabled:hover {
+  background: rgba(255, 255, 255, 0.54);
+}
+
+.reading-list-link {
+  color: inherit;
+  text-decoration: none;
+}
+
+.reading-list-link:hover {
+  color: var(--primary-dark);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.reading-list-row-title.reading-list-link {
+  display: inline-flex;
+  max-width: 100%;
+  align-items: center;
+  gap: 4px;
+}
+
+.reading-list-row-title.reading-list-link span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.reading-list-row-title.is-unlinked {
+  color: var(--text);
+}
+
+.reading-list-row-source.is-invalid {
+  color: #a76861;
 }
 
 .reading-list-tag {
@@ -687,30 +762,33 @@ body::before {
   .reading-list-toolbar {
     align-items: stretch;
     flex-direction: column;
-    padding: 14px 16px 12px;
+    padding: 0;
+  }
+
+  .reading-list-actions {
+    justify-content: space-between;
   }
 
   .reading-list-tab {
     min-width: 0;
-    flex: 1 1 96px;
-    height: 38px;
-    padding: 0 12px;
-    font-size: 14px;
+    flex: 1 1 0;
+    height: 34px;
+    padding: 0 8px;
+    font-size: 12px;
   }
 
   .reading-list-add-button {
-    width: 100%;
-    height: 38px;
-    font-size: 15px;
+    height: 32px;
+    font-size: 12px;
   }
 
   .reading-list-body {
-    padding: 0 16px 14px;
+    padding: 0;
   }
 
   .reading-list-form {
-    grid-template-columns: 52px minmax(0, 1fr);
-    padding: 14px;
+    grid-template-columns: 42px minmax(0, 1fr);
+    padding: 10px;
   }
 
   .reading-list-row {

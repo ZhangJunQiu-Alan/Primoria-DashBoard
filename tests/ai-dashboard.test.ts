@@ -6,6 +6,8 @@ import { useDashboardStore } from '@/store/dashboardStore'
 import { usePomodoroJourneyStore } from '@/store/pomodoroJourneyStore'
 import {
   createLinedNotesDocument,
+  getReadingListUrlDomain,
+  normalizeReadingListUrl,
   normalizeLinedNotesDocument,
   normalizeReadingListItems,
   useWidgetDataStore,
@@ -178,14 +180,14 @@ describe('dashboard AI foundations', () => {
     resetStores([{ id: 'reading-1', type: 'reading-list' }])
 
     useWidgetDataStore.getState().addReadingListItem('reading-1', {
-      source: 'Medium',
+      source: 'example.com/articles/systems',
       tag: '效率',
       title: 'Thinking in Systems for Everyday Work',
     })
 
     const added = useWidgetDataStore.getState().readingListsByWidget['reading-1'][0]
     expect(added).toEqual(expect.objectContaining({
-      source: 'Medium',
+      source: 'https://example.com/articles/systems',
       status: 'to-read',
       tag: '效率',
       title: 'Thinking in Systems for Everyday Work',
@@ -195,6 +197,46 @@ describe('dashboard AI foundations', () => {
 
     expect(useWidgetDataStore.getState().readingListsByWidget['reading-1'][0].status).toBe('reading')
     expect(useWidgetDataStore.getState().readingListsByWidget['other-widget']).toBeUndefined()
+  })
+
+  it('normalizes reading list URLs and rejects invalid sources', () => {
+    expect(normalizeReadingListUrl('example.com/path')).toBe('https://example.com/path')
+    expect(normalizeReadingListUrl('https://www.example.com/path')).toBe('https://www.example.com/path')
+    expect(getReadingListUrlDomain('https://www.example.com/path')).toBe('example.com')
+    expect(normalizeReadingListUrl('notebook')).toBeNull()
+    expect(normalizeReadingListUrl('ftp://example.com/file')).toBeNull()
+  })
+
+  it('edits reading list items without leaking across widgets', () => {
+    resetStores([{ id: 'reading-1', type: 'reading-list' }, { id: 'reading-2', type: 'reading-list' }])
+
+    useWidgetDataStore.getState().addReadingListItem('reading-1', {
+      source: 'old.example.com',
+      tag: '旧标签',
+      title: '旧标题',
+    })
+    useWidgetDataStore.getState().addReadingListItem('reading-2', {
+      source: 'other.example.com',
+      tag: '其他',
+      title: '另一条',
+    })
+
+    const target = useWidgetDataStore.getState().readingListsByWidget['reading-1'][0]
+    useWidgetDataStore.getState().updateReadingListItem('reading-1', target.id, {
+      source: 'new.example.com/reading',
+      tag: '新标签',
+      title: '新标题',
+    })
+
+    expect(useWidgetDataStore.getState().readingListsByWidget['reading-1'][0]).toEqual(expect.objectContaining({
+      source: 'https://new.example.com/reading',
+      tag: '新标签',
+      title: '新标题',
+    }))
+    expect(useWidgetDataStore.getState().readingListsByWidget['reading-2'][0]).toEqual(expect.objectContaining({
+      source: 'https://other.example.com/',
+      title: '另一条',
+    }))
   })
 
   it('starts reading lists empty and removes legacy seed rows', () => {
@@ -219,7 +261,7 @@ describe('dashboard AI foundations', () => {
         updatedAt: 10,
       },
     ])).toEqual([
-      expect.objectContaining({ id: 'custom-reading', title: '用户自己的条目' }),
+      expect.objectContaining({ id: 'custom-reading', source: '本地', title: '用户自己的条目' }),
     ])
   })
 

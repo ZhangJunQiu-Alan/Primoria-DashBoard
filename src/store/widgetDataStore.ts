@@ -60,6 +60,8 @@ export interface ReadingListItem {
   updatedAt: number
 }
 
+export type ReadingListItemPatch = Partial<Pick<ReadingListItem, 'source' | 'tag' | 'title'>>
+
 export interface PomodoroData {
   totalSessions: number
   todaySessions: number
@@ -169,6 +171,7 @@ interface WidgetDataState {
     widgetId: string,
     item: Pick<ReadingListItem, 'title' | 'source' | 'tag'> & { status?: ReadingListStatus }
   ) => void
+  updateReadingListItem: (widgetId: string, id: string, patch: ReadingListItemPatch) => void
   updateReadingListItemStatus: (widgetId: string, id: string, status: ReadingListStatus) => void
   removeReadingListItem: (widgetId: string, id: string) => void
 
@@ -201,6 +204,8 @@ const makeId = () => `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
 const makeLinedNotePageId = () => `lined-note-page-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
 
 export const DEFAULT_READING_LIST_ITEMS: ReadingListItem[] = []
+const HTTP_URL_PREFIX_RE = /^https?:\/\//i
+const IPV4_HOST_RE = /^\d{1,3}(?:\.\d{1,3}){3}$/
 
 const READING_LIST_SEED_ITEM_IDS = new Set([
   'reading-seed-para',
@@ -221,6 +226,39 @@ export function normalizeReadingListsByWidget(
   return Object.fromEntries(
     Object.entries(map).map(([widgetId, items]) => [widgetId, normalizeReadingListItems(items)])
   )
+}
+
+function hasSupportedReadingListHost(hostname: string) {
+  const host = hostname.trim().toLowerCase()
+  if (!host || host === 'localhost') return false
+  if (IPV4_HOST_RE.test(host)) {
+    return host.split('.').every((part) => {
+      const value = Number(part)
+      return Number.isInteger(value) && value >= 0 && value <= 255
+    })
+  }
+  return host.includes('.') && !host.endsWith('.')
+}
+
+export function normalizeReadingListUrl(value: string) {
+  const trimmed = value.trim()
+  if (!trimmed) return null
+
+  const candidate = HTTP_URL_PREFIX_RE.test(trimmed) ? trimmed : `https://${trimmed}`
+  try {
+    const url = new URL(candidate)
+    if (url.protocol !== 'http:' && url.protocol !== 'https:') return null
+    if (!hasSupportedReadingListHost(url.hostname)) return null
+    return url.toString()
+  } catch {
+    return null
+  }
+}
+
+export function getReadingListUrlDomain(value: string) {
+  const normalizedUrl = normalizeReadingListUrl(value)
+  if (!normalizedUrl) return null
+  return new URL(normalizedUrl).hostname.replace(/^www\./i, '')
 }
 
 function shortText(value: string) {
@@ -985,10 +1023,11 @@ export const useWidgetDataStore = create<WidgetDataState>()(
         const id = makeId()
         const now = Date.now()
         const title = item.title.trim()
-        const source = item.source.trim() || '未设置来源'
+        const source = normalizeReadingListUrl(item.source)
         const tag = item.tag.trim() || '未分类'
         const status = item.status ?? 'to-read'
-        if (!title) return
+        if (!title || !source) return
+        const sourceDomain = getReadingListUrlDomain(source)
 
         set((s) =>
           updateReadingList(s.readingListsByWidget, widgetId, (list) => [
@@ -1007,7 +1046,7 @@ export const useWidgetDataStore = create<WidgetDataState>()(
         trackBehaviorEvent({
           eventName: 'reading_list.item_added',
           metadata: {
-            source: shortText(source),
+            sourceDomain,
             status,
             tag: shortText(tag),
             titleLength: title.length,
@@ -1016,6 +1055,41 @@ export const useWidgetDataStore = create<WidgetDataState>()(
           objectId: id,
           objectType: 'reading_list_item',
           summary: `新增阅读条目：${shortText(title)}`,
+          surface: 'widget',
+          widgetId,
+          widgetType: 'reading-list',
+        })
+      },
+      updateReadingListItem: (widgetId, id, patch) => {
+        const item = getReadingListItems(get().readingListsByWidget, widgetId)
+          .find((entry) => entry.id === id)
+        if (!item) return
+
+        const nextTitle = patch.title === undefined ? item.title : patch.title.trim()
+        const nextSource = patch.source === undefined ? item.source : normalizeReadingListUrl(patch.source)
+        const nextTag = patch.tag === undefined ? item.tag : patch.tag.trim() || '未分类'
+        if (!nextTitle || !nextSource) return
+
+        set((s) =>
+          updateReadingList(s.readingListsByWidget, widgetId, (list) =>
+            list.map((entry) =>
+              entry.id === id
+                ? { ...entry, title: nextTitle, source: nextSource, tag: nextTag, updatedAt: Date.now() }
+                : entry
+            )
+          )
+        )
+        trackBehaviorEvent({
+          eventName: 'reading_list.item_updated',
+          metadata: {
+            sourceDomain: getReadingListUrlDomain(nextSource),
+            tag: shortText(nextTag),
+            titleLength: nextTitle.length,
+            titleSummary: shortText(nextTitle),
+          },
+          objectId: id,
+          objectType: 'reading_list_item',
+          summary: `更新阅读条目：${shortText(nextTitle)}`,
           surface: 'widget',
           widgetId,
           widgetType: 'reading-list',
@@ -1039,7 +1113,7 @@ export const useWidgetDataStore = create<WidgetDataState>()(
           eventName: 'reading_list.item_status_changed',
           metadata: {
             fromStatus: item.status,
-            source: shortText(item.source),
+            sourceDomain: getReadingListUrlDomain(item.source),
             tag: shortText(item.tag),
             titleSummary: shortText(item.title),
             toStatus: status,
@@ -1065,7 +1139,7 @@ export const useWidgetDataStore = create<WidgetDataState>()(
           trackBehaviorEvent({
             eventName: 'reading_list.item_removed',
             metadata: {
-              source: shortText(item.source),
+              sourceDomain: getReadingListUrlDomain(item.source),
               status: item.status,
               tag: shortText(item.tag),
               titleSummary: shortText(item.title),
