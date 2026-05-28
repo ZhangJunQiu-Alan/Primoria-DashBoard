@@ -13,6 +13,7 @@ export type WidgetType =
   | 'habits'
   | 'scheduled-todo'
   | 'daily-brief'
+  | 'reading-list'
 
 export interface WidgetMeta {
   type: WidgetType

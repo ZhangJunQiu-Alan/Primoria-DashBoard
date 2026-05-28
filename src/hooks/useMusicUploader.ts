@@ -4,7 +4,6 @@ import { useCloudSync } from '@/components/cloud/cloudSyncContext'
 import {
   isSupportedAudioFile,
   MAX_TRACK_BYTES,
-  parseTrackMetadata,
   STORAGE_QUOTA_BYTES,
 } from '@/lib/musicLibrary'
 import { useMusicStore } from '@/store/musicStore'
@@ -61,6 +60,7 @@ export function useMusicUploader(): UseMusicUploaderResult {
 
       let succeeded = 0
       try {
+        const { parseTrackMetadata } = await import('@/lib/musicMetadataParser')
         for (let i = 0; i < valid.length; i++) {
           const file = valid[i]
           try {
@@ -74,6 +74,9 @@ export function useMusicUploader(): UseMusicUploaderResult {
           setBusy({ done: i + 1, total: valid.length })
         }
         if (succeeded > 0) toast.success(`已上传 ${succeeded} 首`)
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : '上传失败'
+        toast.error(`音乐上传失败：${msg}`)
       } finally {
         setUploading(false)
         setBusy(null)

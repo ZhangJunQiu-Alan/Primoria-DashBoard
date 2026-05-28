@@ -89,6 +89,7 @@ const WIDGET_TITLE_BY_TYPE: Record<WidgetType, string> = {
   'music-player': '音乐播放器',
   notes: '便签',
   'quick-links': '快速链接',
+  'reading-list': '阅读清单',
   'scheduled-todo': '日程任务',
   todo: '待办事项',
 }
@@ -456,4 +457,3 @@ export async function syncUserContentItems(
 
   return { ok: true, synced: rows.length }
 }
-

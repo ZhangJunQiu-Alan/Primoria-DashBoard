@@ -30,6 +30,7 @@ function resetStores(widgets: WidgetInstance[] = []) {
     notesByWidget: {},
     pomodoro: { totalSessions: 0, todaySessions: 0, lastSessionDate: '2026-05-05' },
     quickLinks: [],
+    readingListsByWidget: {},
     scheduledTasksByWidget: {},
     todosByWidget: {},
   })
@@ -170,6 +171,29 @@ describe('dashboard AI foundations', () => {
     const moved = useWidgetDataStore.getState().scheduledTasksByWidget['schedule-1'][0]
     expect(moved.dueDate).toBe('2026-05-11')
     expect(moved.completedAt).toBe('2026-05-11')
+  })
+
+  it('keeps reading list items scoped to their widget and updates status', () => {
+    resetStores([{ id: 'reading-1', type: 'reading-list' }])
+
+    useWidgetDataStore.getState().addReadingListItem('reading-1', {
+      source: 'Medium',
+      tag: '效率',
+      title: 'Thinking in Systems for Everyday Work',
+    })
+
+    const added = useWidgetDataStore.getState().readingListsByWidget['reading-1'][0]
+    expect(added).toEqual(expect.objectContaining({
+      source: 'Medium',
+      status: 'to-read',
+      tag: '效率',
+      title: 'Thinking in Systems for Everyday Work',
+    }))
+
+    useWidgetDataStore.getState().updateReadingListItemStatus('reading-1', added.id, 'reading')
+
+    expect(useWidgetDataStore.getState().readingListsByWidget['reading-1'][0].status).toBe('reading')
+    expect(useWidgetDataStore.getState().readingListsByWidget['other-widget']).toBeUndefined()
   })
 
   it('lets the dashboard AI read pomodoro timer history by local date range', async () => {

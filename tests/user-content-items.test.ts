@@ -31,6 +31,7 @@ function resetStores(widgets: WidgetInstance[] = []) {
     notesByWidget: {},
     pomodoro: { totalSessions: 0, todaySessions: 0, lastSessionDate: '2026-05-10' },
     quickLinks: [],
+    readingListsByWidget: {},
     scheduledTasksByWidget: {},
     todosByWidget: {},
   })

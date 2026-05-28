@@ -10,6 +10,7 @@ import {
   type LinedNotesDocument,
   type PomodoroData,
   type QuickLink,
+  type ReadingListItem,
   type ScheduledTask,
   type TodoItem,
   normalizeLinedNotesDocument,
@@ -32,6 +33,7 @@ export interface WidgetDataSnapshot {
   calendarEmbeds: Record<string, string>
   notesByWidget: Record<string, string>
   linedNotesByWidget: Record<string, LinedNotesDocument>
+  readingListsByWidget: Record<string, ReadingListItem[]>
   scheduledTasksByWidget: Record<string, ScheduledTask[]>
   pomodoro: PomodoroData
   dailyBriefsByDate: Record<string, DailyBriefData>
@@ -88,6 +90,7 @@ export function getWidgetDataSnapshot(): WidgetDataSnapshot {
     notesByWidget,
     pomodoro,
     quickLinks,
+    readingListsByWidget,
     scheduledTasksByWidget,
     todosByWidget,
   } = useWidgetDataStore.getState()
@@ -102,6 +105,7 @@ export function getWidgetDataSnapshot(): WidgetDataSnapshot {
     notesByWidget,
     pomodoro,
     quickLinks,
+    readingListsByWidget,
     scheduledTasksByWidget,
     todosByWidget,
     aiConversations,
@@ -126,6 +130,7 @@ export function applyWidgetDataSnapshot(snapshot: WidgetDataSnapshot) {
     calendarEventsByDate: cloneJson(snapshot.calendarEventsByDate ?? {}),
     notesByWidget: cloneJson(snapshot.notesByWidget ?? {}),
     linedNotesByWidget: cloneJson(normalizedLinedNotes),
+    readingListsByWidget: cloneJson(snapshot.readingListsByWidget ?? {}),
     scheduledTasksByWidget: cloneJson(snapshot.scheduledTasksByWidget ?? {}),
     pomodoro: cloneJson(snapshot.pomodoro ?? {
       totalSessions: 0,

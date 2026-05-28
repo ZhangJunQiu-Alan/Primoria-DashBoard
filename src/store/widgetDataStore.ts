@@ -48,6 +48,18 @@ export interface ScheduledTask {
   completedAt?: string | null
 }
 
+export type ReadingListStatus = 'to-read' | 'reading' | 'done'
+
+export interface ReadingListItem {
+  id: string
+  title: string
+  source: string
+  tag: string
+  status: ReadingListStatus
+  createdAt: number
+  updatedAt: number
+}
+
 export interface PomodoroData {
   totalSessions: number
   todaySessions: number
@@ -151,6 +163,15 @@ interface WidgetDataState {
     toIndex: number
   ) => void
 
+  // Reading List — per widget instance
+  readingListsByWidget: Record<string, ReadingListItem[]>
+  addReadingListItem: (
+    widgetId: string,
+    item: Pick<ReadingListItem, 'title' | 'source' | 'tag'> & { status?: ReadingListStatus }
+  ) => void
+  updateReadingListItemStatus: (widgetId: string, id: string, status: ReadingListStatus) => void
+  removeReadingListItem: (widgetId: string, id: string) => void
+
   // Pomodoro
   pomodoro: PomodoroData
   incrementPomodoro: () => void
@@ -178,6 +199,54 @@ export const DEFAULT_AI_CONVERSATION_ID = 'default-dashboard-agent'
 const today = () => formatLocalDateKey()
 const makeId = () => `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
 const makeLinedNotePageId = () => `lined-note-page-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+
+export const DEFAULT_READING_LIST_ITEMS: ReadingListItem[] = [
+  {
+    id: 'reading-seed-para',
+    title: 'How to build a second brain with PARA',
+    source: 'Notion Blog',
+    tag: '学习方法',
+    status: 'to-read',
+    createdAt: 1,
+    updatedAt: 1,
+  },
+  {
+    id: 'reading-seed-ai-tools',
+    title: 'The best AI tools I use every day as a designer',
+    source: 'Y Combinator',
+    tag: 'AI 工具',
+    status: 'to-read',
+    createdAt: 2,
+    updatedAt: 2,
+  },
+  {
+    id: 'reading-seed-agent',
+    title: '从提示工程到智能体：AI 应用的下一站',
+    source: '少数派',
+    tag: 'AI',
+    status: 'to-read',
+    createdAt: 3,
+    updatedAt: 3,
+  },
+  {
+    id: 'reading-seed-calm-ux',
+    title: 'Designing with Calm: 7 Principles for Focused UX',
+    source: 'UX Collective',
+    tag: '设计',
+    status: 'to-read',
+    createdAt: 4,
+    updatedAt: 4,
+  },
+  {
+    id: 'reading-seed-fragmented-knowledge',
+    title: '高效阅读：如何在碎片化信息中构建知识体系',
+    source: '得到',
+    tag: '学习方法',
+    status: 'to-read',
+    createdAt: 5,
+    updatedAt: 5,
+  },
+]
 
 function shortText(value: string) {
   return summarizeText(value, 72)
@@ -250,6 +319,26 @@ const updateList = (
   widgetId: string,
   fn: (list: TodoItem[]) => TodoItem[]
 ) => ({ todosByWidget: { ...map, [widgetId]: fn(map[widgetId] ?? []) } })
+
+function getReadingListItems(
+  map: Record<string, ReadingListItem[]>,
+  widgetId: string
+) {
+  return map[widgetId] ?? DEFAULT_READING_LIST_ITEMS
+}
+
+function updateReadingList(
+  map: Record<string, ReadingListItem[]>,
+  widgetId: string,
+  fn: (list: ReadingListItem[]) => ReadingListItem[]
+) {
+  return {
+    readingListsByWidget: {
+      ...map,
+      [widgetId]: fn(getReadingListItems(map, widgetId)),
+    },
+  }
+}
 
 export const useWidgetDataStore = create<WidgetDataState>()(
   persist(
@@ -912,6 +1001,106 @@ export const useWidgetDataStore = create<WidgetDataState>()(
             surface: 'widget',
             widgetId: todoWidgetId,
             widgetType: 'todo',
+          })
+        }
+      },
+
+      readingListsByWidget: {},
+      addReadingListItem: (widgetId, item) => {
+        const id = makeId()
+        const now = Date.now()
+        const title = item.title.trim()
+        const source = item.source.trim() || '未设置来源'
+        const tag = item.tag.trim() || '未分类'
+        const status = item.status ?? 'to-read'
+        if (!title) return
+
+        set((s) =>
+          updateReadingList(s.readingListsByWidget, widgetId, (list) => [
+            {
+              id,
+              title,
+              source,
+              tag,
+              status,
+              createdAt: now,
+              updatedAt: now,
+            },
+            ...list,
+          ])
+        )
+        trackBehaviorEvent({
+          eventName: 'reading_list.item_added',
+          metadata: {
+            source: shortText(source),
+            status,
+            tag: shortText(tag),
+            titleLength: title.length,
+            titleSummary: shortText(title),
+          },
+          objectId: id,
+          objectType: 'reading_list_item',
+          summary: `新增阅读条目：${shortText(title)}`,
+          surface: 'widget',
+          widgetId,
+          widgetType: 'reading-list',
+        })
+      },
+      updateReadingListItemStatus: (widgetId, id, status) => {
+        const item = getReadingListItems(get().readingListsByWidget, widgetId)
+          .find((entry) => entry.id === id)
+        if (!item || item.status === status) return
+
+        set((s) =>
+          updateReadingList(s.readingListsByWidget, widgetId, (list) =>
+            list.map((entry) =>
+              entry.id === id
+                ? { ...entry, status, updatedAt: Date.now() }
+                : entry
+            )
+          )
+        )
+        trackBehaviorEvent({
+          eventName: 'reading_list.item_status_changed',
+          metadata: {
+            fromStatus: item.status,
+            source: shortText(item.source),
+            tag: shortText(item.tag),
+            titleSummary: shortText(item.title),
+            toStatus: status,
+          },
+          objectId: id,
+          objectType: 'reading_list_item',
+          summary: `更新阅读状态：${shortText(item.title)}`,
+          surface: 'widget',
+          widgetId,
+          widgetType: 'reading-list',
+        })
+      },
+      removeReadingListItem: (widgetId, id) => {
+        const item = getReadingListItems(get().readingListsByWidget, widgetId)
+          .find((entry) => entry.id === id)
+
+        set((s) =>
+          updateReadingList(s.readingListsByWidget, widgetId, (list) =>
+            list.filter((entry) => entry.id !== id)
+          )
+        )
+        if (item) {
+          trackBehaviorEvent({
+            eventName: 'reading_list.item_removed',
+            metadata: {
+              source: shortText(item.source),
+              status: item.status,
+              tag: shortText(item.tag),
+              titleSummary: shortText(item.title),
+            },
+            objectId: id,
+            objectType: 'reading_list_item',
+            summary: `删除阅读条目：${shortText(item.title)}`,
+            surface: 'widget',
+            widgetId,
+            widgetType: 'reading-list',
           })
         }
       },

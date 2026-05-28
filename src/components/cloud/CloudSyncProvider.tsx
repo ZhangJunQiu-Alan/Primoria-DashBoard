@@ -112,6 +112,7 @@ function buildRemoteSyncSnapshot(row: DashboardSnapshotRow): DashboardSyncSnapsh
       notesByWidget: {},
       pomodoro: { lastSessionDate: new Date().toISOString().slice(0, 10), todaySessions: 0, totalSessions: 0 },
       quickLinks: [],
+      readingListsByWidget: {},
       scheduledTasksByWidget: {},
       todosByWidget: {},
     },

@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react'
-import { X, Search, Clock, Link2, FileText, CheckSquare, Mountain, CalendarDays, ListChecks, Disc3, Quote, CalendarClock, Sparkles } from 'lucide-react'
+import { X, Search, Clock, Link2, FileText, CheckSquare, Mountain, CalendarDays, ListChecks, Disc3, Quote, CalendarClock, Sparkles, BookOpenCheck } from 'lucide-react'
 import { useDashboardStore } from '@/store/dashboardStore'
 import type { WidgetType } from '@/types/widget'
 
@@ -24,6 +24,7 @@ const WIDGET_DEFS: WidgetDef[] = [
   { type: 'habits', name: '习惯打卡', description: '追踪每日习惯，查看近 7 天', icon: ListChecks, category: '效率' },
   { type: 'scheduled-todo', name: '日程任务', description: '横向日期时间轴，可拖拽任务吸附到不同日期', icon: CalendarClock, category: '效率' },
   { type: 'daily-brief', name: '每日简报', description: '读取日程、待办、习惯和笔记生成当天建议', icon: Sparkles, category: 'AI' },
+  { type: 'reading-list', name: '阅读清单', description: '收集文章、书籍和资料阅读进度', icon: BookOpenCheck, category: '学习' },
 ]
 
 interface Props {

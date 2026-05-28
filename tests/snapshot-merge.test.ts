@@ -22,6 +22,7 @@ function snapshot(overrides: Partial<DashboardSyncSnapshot> = {}): DashboardSync
       notesByWidget: {},
       pomodoro: { lastSessionDate: '2026-05-12', todaySessions: 0, totalSessions: 0 },
       quickLinks: [],
+      readingListsByWidget: {},
       scheduledTasksByWidget: {},
       todosByWidget: {
         'todo-widget': [

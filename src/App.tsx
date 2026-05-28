@@ -1,9 +1,8 @@
-import { useEffect, useRef, useState } from 'react'
+import { lazy, Suspense, useEffect, useRef, useState } from 'react'
 import { Plus, Eye, EyeOff, Sparkles, ImageIcon, Music2, LoaderCircle } from 'lucide-react'
 import { toast } from 'sonner'
 import { Dashboard } from '@/components/layout/Dashboard'
 import { AddWidgetModal } from '@/components/layout/AddWidgetModal'
-import { AIChatPanel } from '@/components/layout/AIChatPanel'
 import { TodoDndProvider } from '@/components/layout/TodoDndProvider'
 import { CloudSyncControl } from '@/components/cloud/CloudSyncControl'
 import { CloudSyncProvider } from '@/components/cloud/CloudSyncProvider'
@@ -19,6 +18,10 @@ import { migrateLegacyNotesToWidgetStore } from '@/lib/notesMigration'
 import { useBackgroundStore } from '@/store/backgroundStore'
 import { useDashboardStore } from '@/store/dashboardStore'
 import { Toaster } from 'sonner'
+
+const LazyAIChatPanel = lazy(() =>
+  import('@/components/layout/AIChatPanel').then((module) => ({ default: module.AIChatPanel }))
+)
 
 export default function App() {
   return (
@@ -264,7 +267,11 @@ function DashboardApp() {
         />
 
         <AddWidgetModal open={modalOpen} onClose={() => setModalOpen(false)} />
-        <AIChatPanel open={aiOpen} onClose={() => setAiOpen(false)} />
+        {aiOpen && (
+          <Suspense fallback={null}>
+            <LazyAIChatPanel open={aiOpen} onClose={() => setAiOpen(false)} />
+          </Suspense>
+        )}
       </div>
     </TodoDndProvider>
   )

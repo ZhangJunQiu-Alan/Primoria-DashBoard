@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react'
+import { lazy, Suspense, useState, useRef } from 'react'
 import { X, SquareArrowOutUpRight, Pencil } from 'lucide-react'
 import type { WidgetType } from '@/types/widget'
 import { useDashboardStore } from '@/store/dashboardStore'
@@ -9,11 +9,31 @@ import { NotesWidget } from '@/components/widgets/NotesWidget'
 import { LinedNotesWidget } from '@/components/widgets/LinedNotesWidget'
 import { TodoWidget } from '@/components/widgets/TodoWidget'
 import { FocusJourneyWidget } from '@/components/widgets/FocusJourneyWidget'
-import { GoogleCalendarWidget } from '@/components/widgets/GoogleCalendarWidget'
 import { HabitWidget } from '@/components/widgets/HabitWidget'
-import { MusicPlayerWidget } from '@/components/widgets/MusicPlayerWidget'
 import { ScheduledTodoWidget } from '@/components/widgets/ScheduledTodoWidget'
-import { DailyBriefWidget } from '@/components/widgets/DailyBriefWidget'
+
+const LazyGoogleCalendarWidget = lazy(() =>
+  import('@/components/widgets/GoogleCalendarWidget').then((module) => ({ default: module.GoogleCalendarWidget }))
+)
+const LazyMusicPlayerWidget = lazy(() =>
+  import('@/components/widgets/MusicPlayerWidget').then((module) => ({ default: module.MusicPlayerWidget }))
+)
+const LazyDailyBriefWidget = lazy(() =>
+  import('@/components/widgets/DailyBriefWidget').then((module) => ({ default: module.DailyBriefWidget }))
+)
+const LazyReadingListWidget = lazy(() =>
+  import('@/components/widgets/ReadingListWidget').then((module) => ({ default: module.ReadingListWidget }))
+)
+
+function WidgetLoadingFallback() {
+  return (
+    <div
+      className="h-full w-full animate-pulse"
+      aria-label="组件加载中"
+      style={{ background: 'rgba(255, 255, 255, 0.22)' }}
+    />
+  )
+}
 
 const DEFAULT_TITLES: Record<WidgetType, string> = {
   clock: '时钟',
@@ -28,6 +48,7 @@ const DEFAULT_TITLES: Record<WidgetType, string> = {
   'habits': '习惯打卡',
   'scheduled-todo': '日程任务',
   'daily-brief': '每日简报',
+  'reading-list': '阅读清单',
 }
 
 interface WidgetShellProps {
@@ -67,11 +88,28 @@ export function WidgetShell({ type, widgetId, onRemove, showHeader }: WidgetShel
       case 'lined-notes': return <LinedNotesWidget widgetId={widgetId} />
       case 'todo': return <TodoWidget widgetId={widgetId} />
       case 'focus-journey': return <FocusJourneyWidget />
-      case 'google-calendar': return <GoogleCalendarWidget widgetId={widgetId} />
-      case 'music-player': return <MusicPlayerWidget widgetId={widgetId} />
+      case 'google-calendar': return (
+        <Suspense fallback={<WidgetLoadingFallback />}>
+          <LazyGoogleCalendarWidget widgetId={widgetId} />
+        </Suspense>
+      )
+      case 'music-player': return (
+        <Suspense fallback={<WidgetLoadingFallback />}>
+          <LazyMusicPlayerWidget widgetId={widgetId} />
+        </Suspense>
+      )
       case 'habits': return <HabitWidget widgetId={widgetId} />
       case 'scheduled-todo': return <ScheduledTodoWidget widgetId={widgetId} />
-      case 'daily-brief': return <DailyBriefWidget widgetId={widgetId} />
+      case 'daily-brief': return (
+        <Suspense fallback={<WidgetLoadingFallback />}>
+          <LazyDailyBriefWidget widgetId={widgetId} />
+        </Suspense>
+      )
+      case 'reading-list': return (
+        <Suspense fallback={<WidgetLoadingFallback />}>
+          <LazyReadingListWidget widgetId={widgetId} />
+        </Suspense>
+      )
       default: return null
     }
   }
@@ -79,6 +117,7 @@ export function WidgetShell({ type, widgetId, onRemove, showHeader }: WidgetShel
   const isClock = type === 'clock'
   const isFocusJourney = type === 'focus-journey'
   const isScheduledTodo = type === 'scheduled-todo'
+  const isReadingList = type === 'reading-list'
   const isTransparent = isClock || isFocusJourney || isScheduledTodo
   const showStandardHeader = showHeader && !isScheduledTodo
   const headerOnDark = isFocusJourney
@@ -137,6 +176,68 @@ export function WidgetShell({ type, widgetId, onRemove, showHeader }: WidgetShel
         )}
         <div className="h-full overflow-hidden">
           <ScheduledTodoWidget widgetId={widgetId} />
+        </div>
+      </div>
+    )
+  }
+
+  if (isReadingList) {
+    return (
+      <div className="group relative h-full">
+        {showHeader && (
+          <>
+            <div className="absolute left-3 top-3 z-20 flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+              {editing && (
+                <input
+                  ref={inputRef}
+                  value={draft}
+                  onChange={(e) => setDraft(e.target.value)}
+                  onBlur={commitEdit}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') commitEdit()
+                    if (e.key === 'Escape') setEditing(false)
+                  }}
+                  onMouseDown={(e) => e.stopPropagation()}
+                  className="outline-none"
+                  style={{
+                    width: '104px',
+                    border: '1px solid rgba(221,211,195,0.75)',
+                    borderRadius: '8px',
+                    background: 'rgba(255,255,255,0.92)',
+                    color: 'var(--text)',
+                    fontSize: '11px',
+                    padding: '3px 6px',
+                  }}
+                />
+              )}
+              <button
+                onMouseDown={(e) => e.stopPropagation()}
+                onClick={startEdit}
+                className="btn-icon-hover rounded-lg p-1"
+                style={{ color: 'var(--text-muted)', background: 'rgba(255,255,255,0.82)' }}
+                title="重命名"
+              >
+                <Pencil size={11} />
+              </button>
+              <button
+                onMouseDown={(e) => e.stopPropagation()}
+                onClick={onRemove}
+                className="btn-icon-hover rounded-lg p-1"
+                style={{ color: 'var(--text-muted)', background: 'rgba(255,255,255,0.82)' }}
+                title="移除组件"
+              >
+                <X size={12} />
+              </button>
+            </div>
+          </>
+        )}
+        {!showHeader && (
+          <div className="drag-handle absolute inset-0 z-10 cursor-grab active:cursor-grabbing" />
+        )}
+        <div className="h-full overflow-hidden">
+          <Suspense fallback={<WidgetLoadingFallback />}>
+            <LazyReadingListWidget widgetId={widgetId} />
+          </Suspense>
         </div>
       </div>
     )

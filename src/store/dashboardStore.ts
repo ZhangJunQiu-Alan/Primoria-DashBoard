@@ -22,6 +22,7 @@ const VALID_TYPES: WidgetType[] = [
   'habits',
   'scheduled-todo',
   'daily-brief',
+  'reading-list',
 ]
 
 // Legacy types are still recognized when migrating persisted layouts; map them to current ones.
@@ -60,6 +61,7 @@ const DEFAULT_SIZES: Record<WidgetType, { w: number; h: number; minW: number; mi
   habits: { w: 5, h: 4, minW: 3, minH: 3 },
   'scheduled-todo': { w: 4, h: 5, minW: 3, minH: 4 },
   'daily-brief': { w: 4, h: 3, minW: 3, minH: 3 },
+  'reading-list': { w: 6, h: 5, minW: 4, minH: 4 },
 }
 
 const DEFAULT_WIDGETS: WidgetInstance[] = [
@@ -87,6 +89,7 @@ const TITLE_BY_TYPE: Record<WidgetType, string> = {
   notes: '便签',
   'focus-journey': '番茄钟',
   'quick-links': '快速链接',
+  'reading-list': '阅读清单',
   'scheduled-todo': '日程任务',
   todo: '待办事项',
 }

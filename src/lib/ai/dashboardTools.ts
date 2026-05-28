@@ -43,6 +43,7 @@ const TITLE_BY_TYPE: Record<WidgetType, string> = {
   notes: '便签',
   'focus-journey': '番茄钟',
   'quick-links': '快速链接',
+  'reading-list': '阅读清单',
   'scheduled-todo': '日程任务',
   todo: '待办事项',
 }
@@ -174,6 +175,7 @@ function getDashboardOverview(): ToolResult {
         notes: Object.keys(data.notesByWidget).length + Object.keys(data.linedNotesByWidget).length,
         pomodoroSessions: pomodoro.aggregates.sessions.length,
         quickLinks: data.quickLinks.length,
+        readingItems: Object.values(data.readingListsByWidget).reduce((sum, items) => sum + items.length, 0),
         scheduledTasks: Object.values(data.scheduledTasksByWidget).reduce((sum, tasks) => sum + tasks.length, 0),
         todos: Object.values(data.todosByWidget).reduce((sum, todos) => sum + todos.length, 0),
       },
