@@ -1,0 +1,51 @@
+{
+  "packageId": "com.primoria.dashboard",
+  "host": "primoria-dashboard.pages.dev",
+  "name": "Primoria Dashboard",
+  "launcherName": "Primoria",
+  "display": "standalone",
+  "themeColor": "#FEFAF5",
+  "themeColorDark": "#000000",
+  "navigationColor": "#000000",
+  "navigationColorDark": "#000000",
+  "navigationDividerColor": "#000000",
+  "navigationDividerColorDark": "#000000",
+  "backgroundColor": "#FEFAF5",
+  "enableNotifications": true,
+  "startUrl": "/",
+  "iconUrl": "https://primoria-dashboard.pages.dev/icon-512.png",
+  "maskableIconUrl": "https://primoria-dashboard.pages.dev/icon-512.png",
+  "splashScreenFadeOutDuration": 300,
+  "signingKey": {
+    "path": "./signing/primoria-release.jks",
+    "alias": "primoria"
+  },
+  "appVersionName": "1",
+  "appVersionCode": 1,
+  "shortcuts": [],
+  "generatorApp": "bubblewrap-cli",
+  "webManifestUrl": "https://primoria-dashboard.pages.dev/manifest.webmanifest",
+  "fallbackType": "customtabs",
+  "features": {},
+  "alphaDependencies": {
+    "enabled": false
+  },
+  "enableSiteSettingsShortcut": true,
+  "isChromeOSOnly": false,
+  "isMetaQuest": false,
+  "fullScopeUrl": "https://primoria-dashboard.pages.dev/",
+  "minSdkVersion": 21,
+  "orientation": "default",
+  "fingerprints": [
+    {
+      "value": "54:49:6F:41:9E:60:6C:2B:B9:EC:81:E6:4D:F8:CE:29:C9:F8:05:B6:FE:C7:4E:BF:6D:38:92:CB:A4:E2:15:7A"
+    }
+  ],
+  "additionalTrustedOrigins": [],
+  "retainedBundles": [],
+  "protocolHandlers": [],
+  "fileHandlers": [],
+  "launchHandlerClientMode": "",
+  "displayOverride": [],
+  "appVersion": "1"
+}

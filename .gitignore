@@ -12,3 +12,11 @@ app-icon.png
 imgs/
 supabase/.temp/
 supabase/.branches/
+android/.gradle/
+android/app/build/
+android/build/
+android/local.properties
+android/signing/
+*.apk
+*.aab
+*.idsig

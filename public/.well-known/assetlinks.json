@@ -1,0 +1,14 @@
+[
+  {
+    "relation": [
+      "delegate_permission/common.handle_all_urls"
+    ],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.primoria.dashboard",
+      "sha256_cert_fingerprints": [
+        "54:49:6F:41:9E:60:6C:2B:B9:EC:81:E6:4D:F8:CE:29:C9:F8:05:B6:FE:C7:4E:BF:6D:38:92:CB:A4:E2:15:7A"
+      ]
+    }
+  }
+]
